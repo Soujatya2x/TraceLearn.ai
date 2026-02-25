@@ -14,7 +14,6 @@ import {
   Moon,
   User,
   Bell,
-  Zap,
   Menu,
   X,
 } from 'lucide-react'
@@ -182,12 +181,17 @@ export function Navbar() {
           aria-label="TraceLearn.ai home"
         >
           <motion.div
-            className="w-7 h-7 bg-primary rounded-md flex items-center justify-center shadow-sm"
+            className="w-7 h-7 rounded-lg overflow-hidden flex-shrink-0 shadow-sm"
             whileHover={{ scale: 1.1, rotate: -8 }}
             whileTap={{ scale: 0.9 }}
             transition={{ type: 'spring', stiffness: 420, damping: 18 }}
           >
-            <Zap className="w-3.5 h-3.5 text-primary-foreground" />
+            <img
+              src="/apple-icon.png"
+              alt="TraceLearn.ai"
+              className="w-full h-full object-cover"
+              draggable={false}
+            />
           </motion.div>
           <motion.span
             className="font-semibold text-sm text-foreground hidden sm:block tracking-tight"
