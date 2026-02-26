@@ -31,7 +31,6 @@ export function ArtifactsFilterBar({
   const [searchFocused, setSearchFocused] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Keyboard shortcut: "/" focuses search
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === '/' && document.activeElement?.tagName !== 'INPUT') {
@@ -46,7 +45,6 @@ export function ArtifactsFilterBar({
   return (
     <div className="flex items-center gap-3 flex-wrap">
 
-      {/* ── Type filter pills ─────────────────────────────── */}
       <div
         className="flex items-center gap-0.5 bg-muted/70 rounded-xl p-1"
         role="tablist"
@@ -68,7 +66,6 @@ export function ArtifactsFilterBar({
                   : 'text-muted-foreground hover:text-foreground',
               )}
             >
-              {/* Sliding active pill */}
               {isActive && (
                 <motion.span
                   layoutId="filterPill"
@@ -82,7 +79,6 @@ export function ArtifactsFilterBar({
         })}
       </div>
 
-      {/* ── Search ────────────────────────────────────────── */}
       <motion.div
         animate={searchFocused ? { scale: 1.01 } : { scale: 1 }}
         transition={{ duration: 0.15 }}
@@ -114,7 +110,6 @@ export function ArtifactsFilterBar({
           className="w-full pl-8 pr-14 py-1.5 text-xs bg-transparent text-foreground placeholder:text-muted-foreground focus:outline-none"
         />
 
-        {/* Shortcut hint / clear button */}
         <div className="absolute right-2.5 flex items-center">
           <AnimatePresence mode="wait">
             {searchQuery ? (
@@ -150,7 +145,6 @@ export function ArtifactsFilterBar({
         </div>
       </motion.div>
 
-      {/* ── Count badge ───────────────────────────────────── */}
       <AnimatePresence mode="wait">
         <motion.span
           key={totalCount}

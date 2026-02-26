@@ -12,12 +12,10 @@ export function TypingIndicator() {
       transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
       className="flex gap-3 items-start"
     >
-      {/* Avatar — matches assistant bubble avatar */}
       <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
         <Bot className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
       </div>
 
-      {/* Bubble */}
       <div className="px-4 py-3 bg-card border border-border rounded-2xl rounded-tl-sm">
         <div
           className="flex items-center gap-1.5"

@@ -3,12 +3,7 @@
 import { useEffect } from 'react'
 import { useAppStore } from '@/store/useAppStore'
 
-/**
- * ThemeProvider — keeps the `dark` class on <html> in sync with the Zustand
- * store after the initial blocking script has already set the correct class.
- * The `transition-colors` on <body> (set in layout.tsx) ensures any
- * subsequent toggle is smooth with no flash.
- */
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const theme = useAppStore((s) => s.theme)
 

@@ -8,7 +8,6 @@ import { AuthProvider } from "@/components/providers/AuthProvider";
 
 import "./globals.css";
 
-/* ================= Fonts ================= */
 
 const inter = Inter({
   subsets: ["latin"],
@@ -22,7 +21,6 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
-/* ================= Metadata ================= */
 
 export const metadata: Metadata = {
   title: "TraceLearn.ai",
@@ -38,14 +36,12 @@ export const metadata: Metadata = {
   },
 };
 
-/* ================= Viewport ================= */
 
 export const viewport: Viewport = {
   themeColor: "#4f46e5",
   userScalable: false,
 };
 
-/* ================= Layout ================= */
 
 export default function RootLayout({
   children,
@@ -60,7 +56,6 @@ export default function RootLayout({
     >
       <body className="font-sans antialiased bg-background text-foreground transition-colors duration-200">
         
-        {/* Prevent theme flicker */}
         <script
           dangerouslySetInnerHTML={{
             __html: `

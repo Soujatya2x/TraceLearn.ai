@@ -20,7 +20,6 @@ import { FileUploadZone } from './FileUploadZone'
 import { cn } from '@/lib/utils'
 import type { Language } from '@/types'
 
-// ─── Language definitions with colour accents ─────────────────────────────────
 
 const LANGUAGES: { value: Language; label: string; color: string; bg: string }[] = [
   { value: 'python',     label: 'Python',     color: 'text-blue-500',   bg: 'bg-blue-500/10'   },
@@ -30,7 +29,6 @@ const LANGUAGES: { value: Language; label: string; color: string; bg: string }[]
   { value: 'go',         label: 'Go',         color: 'text-cyan-500',   bg: 'bg-cyan-500/10'   },
 ]
 
-// ─── Animated counter ─────────────────────────────────────────────────────────
 
 function AnimatedNumber({ value, delay = 0 }: { value: number; delay?: number }) {
   const [display, setDisplay] = useState(0)
@@ -50,7 +48,6 @@ function AnimatedNumber({ value, delay = 0 }: { value: number; delay?: number })
   return <>{display}</>
 }
 
-// ─── Session stat card ────────────────────────────────────────────────────────
 
 function SessionStat({
   icon: Icon,
@@ -82,7 +79,6 @@ function SessionStat({
       onHoverEnd={() => setHovered(false)}
       className="relative bg-card border border-border rounded-xl p-3 flex flex-col gap-1.5 overflow-hidden cursor-default"
     >
-      {/* Hover glow */}
       <motion.span
         className="absolute inset-0 rounded-xl pointer-events-none"
         animate={{ opacity: hovered ? 1 : 0 }}
@@ -90,7 +86,6 @@ function SessionStat({
         style={{ background: 'radial-gradient(ellipse at 50% 0%, hsl(var(--primary)/0.07), transparent 70%)' }}
       />
 
-      {/* Icon */}
       <motion.div
         className={cn('w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0', iconBg)}
         animate={hovered ? { scale: 1.12, rotate: -6 } : { scale: 1, rotate: 0 }}
@@ -99,7 +94,6 @@ function SessionStat({
         <Icon className={cn('w-3.5 h-3.5', iconColor)} aria-hidden="true" />
       </motion.div>
 
-      {/* Value */}
       <motion.p
         className="text-lg font-bold text-foreground leading-none tabular-nums"
         animate={hovered ? { scale: 1.05 } : { scale: 1 }}
@@ -111,13 +105,11 @@ function SessionStat({
         }
       </motion.p>
 
-      {/* Label */}
       <p className="text-[10px] text-muted-foreground leading-tight">{label}</p>
     </motion.div>
   )
 }
 
-// ─── Custom language selector ─────────────────────────────────────────────────
 
 function LanguageSelector({
   value,
@@ -148,7 +140,6 @@ function LanguageSelector({
         Language
       </label>
 
-      {/* Trigger */}
       <motion.button
         id="language-trigger"
         type="button"
@@ -228,7 +219,6 @@ function LanguageSelector({
   )
 }
 
-// ─── History entry row ────────────────────────────────────────────────────────
 
 function HistoryRow({
   error,
@@ -255,7 +245,6 @@ function HistoryRow({
         hovered ? 'bg-muted/60' : 'bg-transparent',
       )}
     >
-      {/* Status dot — pulses if unresolved */}
       <span className="relative flex-shrink-0">
         <span
           className={cn(
@@ -272,7 +261,6 @@ function HistoryRow({
         )}
       </span>
 
-      {/* Error name */}
       <span
         className={cn(
           'font-mono flex-1 truncate transition-colors',
@@ -282,7 +270,6 @@ function HistoryRow({
         {error}
       </span>
 
-      {/* Badge */}
       <span
         className={cn(
           'flex-shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-semibold',
@@ -294,13 +281,11 @@ function HistoryRow({
         {resolved ? 'fixed' : 'open'}
       </span>
 
-      {/* Date */}
       <span className="text-muted-foreground flex-shrink-0 text-[10px]">{date}</span>
     </motion.div>
   )
 }
 
-// ─── Main panel ───────────────────────────────────────────────────────────────
 
 export function WorkspaceRightPanel() {
   const [historyOpen, setHistoryOpen]       = useState(false)
@@ -339,7 +324,6 @@ export function WorkspaceRightPanel() {
   return (
     <div className="flex flex-col gap-4">
 
-      {/* ── Session ID card ──────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -360,7 +344,6 @@ export function WorkspaceRightPanel() {
             </span>
           </div>
 
-          {/* Copy button */}
           <AnimatePresence mode="wait">
             {currentSessionId && (
               <motion.button
@@ -402,7 +385,6 @@ export function WorkspaceRightPanel() {
           </AnimatePresence>
         </div>
 
-        {/* ID value with highlight on copy */}
         <motion.p
           className={cn(
             'text-xs font-mono break-all leading-relaxed pl-0.5 transition-colors duration-300',
@@ -414,7 +396,6 @@ export function WorkspaceRightPanel() {
           )}
         </motion.p>
 
-        {/* Subtle "copied" toast */}
         <AnimatePresence>
           {copied && (
             <motion.p
@@ -430,7 +411,6 @@ export function WorkspaceRightPanel() {
         </AnimatePresence>
       </motion.div>
 
-      {/* ── Session Stats ─────────────────────────────────────── */}
       <div>
         <motion.p
           initial={{ opacity: 0 }}
@@ -472,13 +452,11 @@ export function WorkspaceRightPanel() {
         </div>
       </div>
 
-      {/* ── Language selector ─────────────────────────────────── */}
       <LanguageSelector
         value={language}
         onChange={(v) => setLanguage(v)}
       />
 
-      {/* ── Log file upload ───────────────────────────────────── */}
       <FileUploadZone
         label="Log File"
         accept=".txt,.log"
@@ -487,7 +465,6 @@ export function WorkspaceRightPanel() {
         hint=".txt or .log — used as RAG context"
       />
 
-      {/* ── Project files upload ──────────────────────────────── */}
       <FileUploadZone
         label="Project Files"
         accept="*"
@@ -496,7 +473,6 @@ export function WorkspaceRightPanel() {
         hint="Optional extra context files"
       />
 
-      {/* Files count badge */}
       <AnimatePresence>
         {projectFiles.length > 1 && (
           <motion.p
@@ -512,7 +488,6 @@ export function WorkspaceRightPanel() {
         )}
       </AnimatePresence>
 
-      {/* ── Learning History collapsible ──────────────────────── */}
       <div className="border border-border rounded-xl overflow-hidden">
         {/* Toggle button */}
         <motion.button
@@ -532,7 +507,6 @@ export function WorkspaceRightPanel() {
               <Clock className="w-2.5 h-2.5 text-primary" />
             </motion.div>
             <span>Learning History</span>
-            {/* Count badge */}
             <motion.span
               className="px-1.5 py-0.5 rounded-full bg-muted text-[9px] font-semibold text-muted-foreground"
               animate={historyOpen ? { backgroundColor: 'hsl(var(--primary) / 0.12)', color: 'hsl(var(--primary))' } : {}}
@@ -550,7 +524,6 @@ export function WorkspaceRightPanel() {
           </motion.div>
         </motion.button>
 
-        {/* Expandable content */}
         <AnimatePresence>
           {historyOpen && (
             <motion.div
@@ -566,7 +539,6 @@ export function WorkspaceRightPanel() {
                   <HistoryRow key={i} {...item} index={i} />
                 ))}
 
-                {/* "View all" link row */}
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}

@@ -34,7 +34,6 @@ export function CodeDiffViewer({ diffLines, addedCount, removedCount }: CodeDiff
   return (
     <div className="rounded-xl border border-border overflow-hidden">
 
-      {/* ── Diff header ──────────────────────────────────── */}
       <div className="flex items-center justify-between px-3 py-2 bg-muted/40 border-b border-border">
         <div className="flex items-center gap-3">
           <span className="text-xs font-medium text-muted-foreground">Diff</span>
@@ -54,7 +53,6 @@ export function CodeDiffViewer({ diffLines, addedCount, removedCount }: CodeDiff
           </div>
         </div>
 
-        {/* Copy diff button */}
         <motion.button
           type="button"
           onClick={handleCopy}
@@ -78,7 +76,6 @@ export function CodeDiffViewer({ diffLines, addedCount, removedCount }: CodeDiff
         </motion.button>
       </div>
 
-      {/* ── Diff table ───────────────────────────────────── */}
       <div className="overflow-x-auto scrollbar-thin bg-editor-bg">
         <table className="w-full text-xs font-mono" aria-label="Code diff">
           <thead className="sr-only">
@@ -109,23 +106,19 @@ export function CodeDiffViewer({ diffLines, addedCount, removedCount }: CodeDiff
                     isHovered && line.type === 'unchanged' && 'bg-white/[0.02]',
                   )}
                 >
-                  {/* Old line number */}
                   <td className="w-10 px-2 py-0.5 text-muted-foreground/40 text-right select-none border-r border-border/30 tabular-nums">
                     {(line.type === 'removed' || line.type === 'unchanged') ? line.lineNumber : ''}
                   </td>
 
-                  {/* New line number */}
                   <td className="w-10 px-2 py-0.5 text-muted-foreground/40 text-right select-none border-r border-border/30 tabular-nums">
                     {(line.type === 'added' || line.type === 'unchanged') ? line.lineNumber : ''}
                   </td>
 
-                  {/* Type gutter */}
                   <td className="w-6 text-center select-none border-r border-border/20 py-0.5">
                     {line.type === 'added'   && <Plus  className="w-3 h-3 text-emerald-500 mx-auto" aria-label="Added"   />}
                     {line.type === 'removed' && <Minus className="w-3 h-3 text-rose-500   mx-auto" aria-label="Removed" />}
                   </td>
 
-                  {/* Code content */}
                   <td className="px-3 py-0.5 whitespace-pre">
                     <span
                       className={cn(
@@ -137,7 +130,6 @@ export function CodeDiffViewer({ diffLines, addedCount, removedCount }: CodeDiff
                     >
                       {line.content}
                     </span>
-                    {/* Inline comment */}
                     {line.comment && line.type !== 'unchanged' && (
                       <span className="ml-4 text-primary/50 italic text-[10px] not-italic font-sans">
                         ← {line.comment}

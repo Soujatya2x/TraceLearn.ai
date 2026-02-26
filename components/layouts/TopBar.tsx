@@ -44,9 +44,7 @@ export function TopBar() {
         )}
       </nav>
 
-      {/* Right side */}
       <div className="flex items-center gap-3">
-        {/* Analysis status */}
         <AnimatePresence>
           {analysisStatus !== 'idle' && (
             <motion.div
@@ -59,7 +57,6 @@ export function TopBar() {
           )}
         </AnimatePresence>
 
-        {/* Icon buttons */}
         <button
           aria-label="Notifications"
           className="w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
@@ -73,7 +70,6 @@ export function TopBar() {
           <Settings className="w-4 h-4" />
         </button>
 
-        {/* Avatar */}
         <button
           aria-label="User profile"
           className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary hover:bg-primary/20 transition-colors"

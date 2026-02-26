@@ -1,9 +1,5 @@
 'use client'
 
-// ============================================================
-// TraceLearn.ai — Sign Up Page
-// ============================================================
-
 import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'

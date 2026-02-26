@@ -1,9 +1,4 @@
-/**
- * RoadmapSkeletonLoader.tsx
- *
- * Full-fidelity skeleton with shimmer wave animation.
- * Mirrors every section of the real roadmap page.
- */
+'use client'
 
 import React from 'react'
 import { cn } from '@/lib/utils'
@@ -25,8 +20,6 @@ function Shimmer({ className, style }: { className?: string; style?: React.CSSPr
   )
 }
 
-// Add the keyframe to globals if not already present. We inline it here via
-// a style tag that is injected once so it works without editing global CSS.
 function ShimmerStyle() {
   return (
     <style>{`

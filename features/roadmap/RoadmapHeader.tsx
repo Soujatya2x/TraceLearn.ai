@@ -30,7 +30,6 @@ export function RoadmapHeader({ roadmap, onRefresh, isRefreshing }: RoadmapHeade
       className="flex items-start justify-between gap-4"
     >
       <div className="flex items-start gap-3">
-        {/* Icon with subtle entrance scale */}
         <motion.div
           initial={{ scale: 0.7, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}

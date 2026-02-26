@@ -44,7 +44,6 @@ function CustomTooltip({ active, payload }: any) {
   )
 }
 
-/** Custom dot that pulses on the active/hovered point */
 function ActiveDot(props: any) {
   const { cx, cy, fill } = props
   return (

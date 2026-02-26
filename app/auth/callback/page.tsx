@@ -1,11 +1,5 @@
 'use client'
 
-// ============================================================
-// TraceLearn.ai — /auth/callback
-// Google and GitHub both redirect here after OAuth.
-// URL shape: /auth/callback?provider=google&code=xxx&state=yyy
-// ============================================================
-
 import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'

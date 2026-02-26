@@ -23,7 +23,6 @@ import { staggerContainer, staggerItem } from '@/animations/variants'
 import { cn } from '@/lib/utils'
 import type { ValidationResult } from '@/types'
 
-// ─── Richer mock data (matches reference image code) ───────────────────────
 
 const MOCK_VALIDATION: ValidationResult = {
   sessionId: 'demo-session-001',
@@ -151,7 +150,6 @@ function CodePanel({
         </div>
       </div>
 
-      {/* Code body — fixed height, scrollable */}
       <div className="flex-1 overflow-auto scrollbar-thin h-[260px]">
         <pre className="p-0 m-0 text-[12px] font-mono leading-6 min-w-max">
           {lines.map((line, i) => {
@@ -170,7 +168,6 @@ function CodePanel({
                     'bg-success/10',
                 )}
               >
-                {/* Left accent bar for highlighted lines */}
                 <div
                   className={cn(
                     'w-0.5 flex-shrink-0 self-stretch',
@@ -348,7 +345,6 @@ export default function ValidationPage() {
               <div className="bg-card border border-border rounded-xl p-5 space-y-4">
                 <h2 className="text-sm font-semibold text-foreground">Fix Explanation</h2>
 
-                {/* What Changed */}
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
                     <Shield className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
@@ -359,7 +355,6 @@ export default function ValidationPage() {
                   </p>
                 </div>
 
-                {/* Why This Works */}
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
                     <Lightbulb className="w-3.5 h-3.5 text-warning" aria-hidden="true" />
@@ -370,7 +365,6 @@ export default function ValidationPage() {
                   </p>
                 </div>
 
-                {/* Reinforced Concept */}
                 <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 flex items-start gap-3">
                   <MessageSquare className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" aria-hidden="true" />
                   <div>
@@ -381,7 +375,6 @@ export default function ValidationPage() {
               </div>
             </motion.div>
 
-            {/* ── Validation Status Bar ─────────────────────────────── */}
             <motion.div variants={staggerItem}>
               <div className={cn('rounded-xl border px-5 py-3.5', sc.bg)}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -399,9 +392,7 @@ export default function ValidationPage() {
                     <span className="text-xs text-muted-foreground">{sc.detail}</span>
                   </div>
 
-                  {/* Controls */}
                   <div className="flex items-center gap-2">
-                    {/* Execution Output toggle */}
                     <button
                       onClick={() => setConsoleOpen((o) => !o)}
                       className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -416,7 +407,6 @@ export default function ValidationPage() {
                       </motion.div>
                     </button>
 
-                    {/* Retry info + Run Again */}
                     <div className="flex items-center gap-2 pl-2 border-l border-border/50">
                       <span className="text-xs text-muted-foreground flex items-center gap-1">
                         <RotateCcw className="w-3 h-3" />
@@ -444,7 +434,6 @@ export default function ValidationPage() {
                   </div>
                 </div>
 
-                {/* Collapsible console output */}
                 <AnimatePresence>
                   {consoleOpen && (
                     <motion.div

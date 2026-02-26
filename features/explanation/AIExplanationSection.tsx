@@ -13,7 +13,6 @@ export function AIExplanationSection({ explanation }: AIExplanationSectionProps)
   return (
     <motion.div variants={staggerItem} className="space-y-4">
 
-      {/* ── Section title ─────────────────────────────────── */}
       <div className="flex items-center gap-2">
         <Brain className="w-5 h-5 text-primary" aria-hidden="true" />
         <h2 className="text-base font-semibold text-foreground">
@@ -21,21 +20,18 @@ export function AIExplanationSection({ explanation }: AIExplanationSectionProps)
         </h2>
       </div>
 
-      {/* ── Plain language explanation ────────────────────── */}
       <div className="p-5 bg-card border border-border rounded-xl">
         <p className="text-sm text-foreground leading-relaxed">
           {explanation.whyItHappened}
         </p>
       </div>
 
-      {/* ── Concept card ─────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
         className="relative flex gap-4 p-5 bg-primary/5 border border-primary/20 rounded-xl overflow-hidden"
       >
-        {/* Left accent bar */}
         <motion.div
           className="absolute left-0 top-0 bottom-0 w-0.5 bg-primary/40 rounded-l-xl"
           initial={{ scaleY: 0 }}
@@ -64,7 +60,6 @@ export function AIExplanationSection({ explanation }: AIExplanationSectionProps)
         </div>
       </motion.div>
 
-      {/* ── Step-by-step reasoning ───────────────────────── */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <ListChecks className="w-4 h-4 text-muted-foreground" aria-hidden="true" />

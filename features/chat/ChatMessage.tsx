@@ -11,15 +11,11 @@ interface ChatMessageProps {
   message: ChatMessageType
 }
 
-// ─── Content renderer ─────────────────────────────────────────
-// Handles ```fenced blocks```, `inline code`, and **bold** text.
 
 function renderContent(content: string) {
-  // Split on fenced blocks first, then inline code
   const parts = content.split(/(```[\s\S]*?```|`[^`]+`)/g)
 
   return parts.map((part, i) => {
-    // Fenced code block
     if (part.startsWith('```') && part.endsWith('```')) {
       const inner   = part.slice(3, -3)
       const newline = inner.indexOf('\n')
@@ -43,7 +39,6 @@ function renderContent(content: string) {
       )
     }
 
-    // Inline code
     if (part.startsWith('`') && part.endsWith('`')) {
       return (
         <code
@@ -55,7 +50,6 @@ function renderContent(content: string) {
       )
     }
 
-    // Bold (**text**)
     const boldParts = part.split(/(\*\*[^*]+\*\*)/g)
     return (
       <span key={i}>
@@ -76,8 +70,6 @@ export function ChatMessage({ message }: ChatMessageProps) {
   const [time, setTime]     = useState<string | null>(null)
   const isUser = message.role === 'user'
 
-  // Defer locale-dependent time formatting to the client only.
-  // Avoids SSR/client hydration mismatch from differing locale outputs.
   useEffect(() => {
     setTime(
       new Date(message.timestamp).toLocaleTimeString([], {
@@ -100,7 +92,6 @@ export function ChatMessage({ message }: ChatMessageProps) {
       animate="animate"
       className={cn('flex gap-3 group', isUser ? 'flex-row-reverse' : 'flex-row')}
     >
-      {/* ── Avatar ───────────────────────────────────────── */}
       <div
         className={cn(
           'w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5',
@@ -111,7 +102,6 @@ export function ChatMessage({ message }: ChatMessageProps) {
         {isUser ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
       </div>
 
-      {/* ── Bubble + meta ────────────────────────────────── */}
       <div className={cn('flex flex-col gap-1 max-w-[80%]', isUser ? 'items-end' : 'items-start')}>
         <div
           className={cn(
@@ -124,15 +114,13 @@ export function ChatMessage({ message }: ChatMessageProps) {
           {renderContent(message.content)}
         </div>
 
-        {/* Timestamp + copy — reveal on group hover */}
         <motion.div
           className={cn(
             'flex items-center gap-2 transition-opacity',
             isUser ? 'flex-row-reverse' : 'flex-row',
           )}
           initial={{ opacity: 0 }}
-          whileInView={{ opacity: 0 }}  // keeps it hidden by default
-          // actual show/hide handled by group-hover CSS
+          whileInView={{ opacity: 0 }}  
         >
           <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
             {time && (

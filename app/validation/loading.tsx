@@ -1,16 +1,4 @@
-/**
- * app/validation/loading.tsx — Validation page skeleton
- *
- * Mirrors the real layout exactly:
- *   • Top header bar with status badge + retry counter
- *   • Two-column horizontal split → Original Code (left) / Fixed Code (right)
- *   • Diff indicator strip below both panels
- *   • "What Changed / Why This Works" explanation cards
- *   • Validation status bar with Run Again button + execution console
- *
- * Uses the same skeleton-shimmer animation and Skeleton primitives as every
- * other loading skeleton in the project — no new dependencies introduced.
- */
+'use client'
 
 import { AppShell } from '@/components/layouts/AppShell'
 import { Skeleton, SkeletonCodePanel } from '@/components/ui/SkeletonCard'
@@ -23,19 +11,14 @@ function ValidationStatusBarSkeleton() {
       className="rounded-2xl border border-border bg-card p-4 space-y-3"
       aria-hidden="true"
     >
-      {/* Status row */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          {/* Status badge */}
           <Skeleton className="h-6 w-24 rounded-full" />
-          {/* Retry counter */}
           <Skeleton className="h-5 w-28" />
         </div>
-        {/* Run Again button */}
         <Skeleton className="h-9 w-28 rounded-xl" />
       </div>
 
-      {/* Execution console (collapsed placeholder) */}
       <div className="rounded-xl bg-muted/30 border border-border p-3 space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -44,7 +27,6 @@ function ValidationStatusBarSkeleton() {
           </div>
           <Skeleton className="w-4 h-4 rounded" />
         </div>
-        {/* Console lines — hidden by default, shown as slim strip */}
         <div className="space-y-1.5">
           {[70, 55, 80].map((w, i) => (
             <Skeleton key={i} className="h-2.5 rounded" style={{ width: `${w}%` }} />
@@ -101,14 +83,12 @@ function FixExplanationSkeleton() {
         <Skeleton className="h-3 w-full" />
         <Skeleton className="h-3 w-5/6" />
         <Skeleton className="h-3 w-4/5" />
-        {/* Inline code badge */}
         <div className="flex items-center gap-2 pt-1">
           <Skeleton className="h-6 w-32 rounded-md" />
           <Skeleton className="h-6 w-24 rounded-md" />
         </div>
       </div>
 
-      {/* "Why This Works" card */}
       <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
         <div className="flex items-center gap-2.5">
           <Skeleton className="w-8 h-8 rounded-lg flex-shrink-0" />
@@ -116,7 +96,6 @@ function FixExplanationSkeleton() {
         </div>
         <Skeleton className="h-3 w-full" />
         <Skeleton className="h-3 w-3/4" />
-        {/* Concept pill */}
         <div className="rounded-xl bg-accent/30 border border-border p-3 space-y-1.5 mt-1">
           <Skeleton className="h-3 w-20" />
           <Skeleton className="h-3 w-full" />
@@ -139,7 +118,6 @@ function ValidationHeaderSkeleton() {
           <Skeleton className="h-3 w-60" />
         </div>
       </div>
-      {/* Session badge */}
       <div className="flex items-center gap-2">
         <Skeleton className="h-6 w-20 rounded-full" />
         <Skeleton className="h-6 w-16 rounded-full" />
@@ -158,12 +136,10 @@ export default function ValidationLoading() {
         aria-busy="true"
         aria-label="Loading validation"
       >
-        {/* Page header */}
         <ValidationHeaderSkeleton />
 
         {/* ── Two-column code split ──────────────────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Left — Original Code (read-only, light bg hint) */}
           <div aria-hidden="true">
             <div className="mb-2 flex items-center gap-2">
               <Skeleton className="h-3 w-24" />
@@ -172,15 +148,12 @@ export default function ValidationLoading() {
             <SkeletonCodePanel label="Original Code" />
           </div>
 
-          {/* Right — Fixed Code (green highlights hint) */}
           <div aria-hidden="true">
             <div className="mb-2 flex items-center gap-2">
               <Skeleton className="h-3 w-20" />
               <Skeleton className="h-5 w-14 rounded-full" />
             </div>
-            {/* Fixed code panel — extra green-tinted lines to hint at changes */}
             <div className="flex flex-col rounded-xl border border-border overflow-hidden" aria-hidden="true">
-              {/* Panel header */}
               <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-card">
                 <div className="flex items-center gap-2">
                   <Skeleton className="w-3 h-3 rounded-full" />
@@ -191,7 +164,6 @@ export default function ValidationLoading() {
                   <Skeleton className="w-6 h-6 rounded-md" />
                 </div>
               </div>
-              {/* Code lines — some "highlighted" green rows */}
               <div className="bg-muted/30 p-4 space-y-2.5 flex-1">
                 {[
                   { w: 72, green: false },
@@ -224,13 +196,8 @@ export default function ValidationLoading() {
           </div>
         </div>
 
-        {/* ── Diff indicator strip ───────────────────────────────────────── */}
         <DiffStripSkeleton />
-
-        {/* ── Fix explanation cards ──────────────────────────────────────── */}
         <FixExplanationSkeleton />
-
-        {/* ── Validation status bar ──────────────────────────────────────── */}
         <ValidationStatusBarSkeleton />
       </div>
     </AppShell>

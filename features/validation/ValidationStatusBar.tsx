@@ -49,10 +49,8 @@ export function ValidationStatusBar({ validation, onRetry, isRetrying }: Validat
   return (
     <div className={cn('rounded-xl border overflow-hidden', config.bg)}>
 
-      {/* ── Main row ─────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
 
-        {/* Status */}
         <div className="flex items-center gap-3">
           <motion.div
             className={cn('flex items-center gap-1.5 text-sm font-semibold', config.text)}
@@ -66,9 +64,7 @@ export function ValidationStatusBar({ validation, onRetry, isRetrying }: Validat
           <span className="text-xs text-muted-foreground hidden sm:block">{config.detail}</span>
         </div>
 
-        {/* Controls */}
         <div className="flex items-center gap-2">
-          {/* Console toggle */}
           <motion.button
             type="button"
             onClick={() => setConsoleOpen((o) => !o)}
@@ -86,7 +82,6 @@ export function ValidationStatusBar({ validation, onRetry, isRetrying }: Validat
             </motion.span>
           </motion.button>
 
-          {/* Retry counter + button */}
           <div className="flex items-center gap-2 pl-2 border-l border-border/40">
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <RotateCcw className="w-3 h-3" aria-hidden="true" />
@@ -116,7 +111,6 @@ export function ValidationStatusBar({ validation, onRetry, isRetrying }: Validat
         </div>
       </div>
 
-      {/* ── Execution console ─────────────────────────────── */}
       <AnimatePresence>
         {consoleOpen && (
           <motion.div
@@ -140,7 +134,6 @@ export function ValidationStatusBar({ validation, onRetry, isRetrying }: Validat
                 <span>{validation.executionOutput.executionTime}ms</span>
               </div>
 
-              {/* stdout */}
               {validation.executionOutput.stdout && (
                 <div>
                   <span className="text-emerald-500/60 text-[10px] uppercase tracking-wide">stdout</span>
@@ -150,7 +143,6 @@ export function ValidationStatusBar({ validation, onRetry, isRetrying }: Validat
                 </div>
               )}
 
-              {/* stderr */}
               {validation.executionOutput.stderr && (
                 <div>
                   <span className="text-rose-500/60 text-[10px] uppercase tracking-wide">stderr</span>

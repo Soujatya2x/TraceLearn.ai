@@ -103,7 +103,6 @@ export function Sidebar({ activeNav }: SidebarProps) {
         </AnimatePresence>
       </div>
 
-      {/* Nav Items */}
       <nav className="flex-1 px-2 py-4 space-y-1" role="navigation">
         {NAV_ITEMS.map((item, i) => {
           const Icon = item.icon
@@ -130,7 +129,6 @@ export function Sidebar({ activeNav }: SidebarProps) {
                     : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground',
                 )}
               >
-                {/* Active indicator */}
                 {isActive && (
                   <motion.div
                     layoutId="activeNavIndicator"
@@ -164,7 +162,6 @@ export function Sidebar({ activeNav }: SidebarProps) {
         })}
       </nav>
 
-      {/* Session pill */}
       <AnimatePresence>
         {sessionId && sidebarOpen && (
           <motion.div
@@ -183,7 +180,6 @@ export function Sidebar({ activeNav }: SidebarProps) {
         )}
       </AnimatePresence>
 
-      {/* Collapse toggle */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
         className="flex items-center justify-center h-10 border-t border-sidebar-border text-sidebar-foreground/40 hover:text-sidebar-foreground/80 transition-colors"

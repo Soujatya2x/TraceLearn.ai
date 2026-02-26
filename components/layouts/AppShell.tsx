@@ -1,7 +1,10 @@
 'use client'
 
+import { usePathname } from 'next/navigation'
 import { Navbar } from '@/components/layouts/Navbar'
 import { Footer } from '@/components/layouts/Footer'
+
+const NO_FOOTER_PATHS = ['/chat']
 
 interface AppShellProps {
   children: React.ReactNode
@@ -9,15 +12,10 @@ interface AppShellProps {
 }
 
 export function AppShell({ children }: AppShellProps) {
+  const pathname   = usePathname()
+  const showFooter = !NO_FOOTER_PATHS.includes(pathname)
+
   return (
-    /*
-     * Outer wrapper scrolls the full page.
-     * The Navbar is sticky/fixed at the top (h-14 = 56px).
-     * The inner content area uses calc(100vh - 56px) so it fills exactly the
-     * remaining viewport — Monaco and the context panel get a resolved px
-     * height, not a percentage that collapses when the Footer is in the flow.
-     * The Footer sits below in normal flow, revealed by scrolling.
-     */
     <div className="flex flex-col min-h-screen bg-background">
       <Navbar />
 
@@ -28,7 +26,7 @@ export function AppShell({ children }: AppShellProps) {
         {children}
       </main>
 
-      <Footer />
+      {showFooter && <Footer />}
     </div>
   )
 }

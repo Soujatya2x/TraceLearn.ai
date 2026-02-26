@@ -24,7 +24,6 @@ export function NextStepCard({ step, index }: NextStepCardProps) {
       aria-label={`Next step: ${step.action}`}
     >
       <div className="flex items-start gap-4">
-        {/* Step number bubble */}
         <motion.div
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -36,7 +35,6 @@ export function NextStepCard({ step, index }: NextStepCardProps) {
         </motion.div>
 
         <div className="flex-1 min-w-0">
-          {/* Action title */}
           <div className="flex items-center gap-2">
             <ArrowRight className="w-3.5 h-3.5 text-primary flex-shrink-0" aria-hidden="true" />
             <h3 className="text-sm font-semibold text-foreground">
@@ -44,12 +42,10 @@ export function NextStepCard({ step, index }: NextStepCardProps) {
             </h3>
           </div>
 
-          {/* Description */}
           <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
             {step.description}
           </p>
 
-          {/* Resource links */}
           {step.resourceLinks.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-3">
               {step.resourceLinks.map((link, i) => (
@@ -70,7 +66,6 @@ export function NextStepCard({ step, index }: NextStepCardProps) {
             </div>
           )}
 
-          {/* Practice exercises toggle */}
           {step.practiceExercises.length > 0 && (
             <div className="mt-3">
               <button

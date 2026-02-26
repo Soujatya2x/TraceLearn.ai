@@ -24,7 +24,6 @@ export function ErrorTopSection({ explanation }: ErrorTopSectionProps) {
   return (
     <motion.div variants={staggerItem} className="space-y-4">
 
-      {/* ── Error badge + message ─────────────────────────── */}
       <div className="flex items-start gap-4 p-5 bg-destructive/5 border border-destructive/20 rounded-xl">
         <motion.div
           className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center flex-shrink-0 mt-0.5"
@@ -37,12 +36,10 @@ export function ErrorTopSection({ explanation }: ErrorTopSectionProps) {
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Error type badge */}
             <span className="px-2 py-0.5 bg-destructive/10 text-destructive text-xs font-semibold rounded-md font-mono">
               {explanation.errorType}
             </span>
 
-            {/* File + line */}
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <FileCode className="w-3 h-3" aria-hidden="true" />
               <span>{explanation.file}</span>
@@ -53,14 +50,12 @@ export function ErrorTopSection({ explanation }: ErrorTopSectionProps) {
             </div>
           </div>
 
-          {/* Error message */}
           <p className="mt-2 text-sm text-foreground font-mono leading-relaxed bg-muted/50 px-3 py-2 rounded-lg">
             {explanation.errorMessage}
           </p>
         </div>
       </div>
 
-      {/* ── Stack trace collapsible ───────────────────────── */}
       <div className="border border-border rounded-xl overflow-hidden">
         {/* Header row */}
         <div className="flex items-center">
@@ -85,7 +80,6 @@ export function ErrorTopSection({ explanation }: ErrorTopSectionProps) {
             </motion.div>
           </button>
 
-          {/* Copy button — only visible when open */}
           <AnimatePresence>
             {stackOpen && (
               <motion.button
@@ -132,7 +126,6 @@ export function ErrorTopSection({ explanation }: ErrorTopSectionProps) {
           </AnimatePresence>
         </div>
 
-        {/* Body */}
         <motion.div
           id="stack-trace-body"
           animate={{ height: stackOpen ? 'auto' : 0 }}
@@ -149,7 +142,6 @@ export function ErrorTopSection({ explanation }: ErrorTopSectionProps) {
                   transition={{ delay: i * 0.04, duration: 0.2 }}
                   className={cn(
                     'px-2 py-0.5 rounded transition-colors',
-                    // Highlight the line that matches the error file
                     line.includes(explanation.file)
                       ? 'text-destructive/80 bg-destructive/5'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/40',

@@ -11,7 +11,6 @@ import { cn } from '@/lib/utils'
 import { cardSlideUp } from '@/animations/variants'
 import type { Artifact } from '@/types'
 
-// ─── Type config ──────────────────────────────────────────────────────────────
 
 const TYPE_CONFIG = {
   pdf: {
@@ -83,7 +82,6 @@ export function ArtifactCard({ artifact, delay = 0 }: ArtifactCardProps) {
   const handleDownload = async () => {
     if (downloading || downloaded) return
     setDownloading(true)
-    // progress bar drives the timing — onDone fires after ~900ms
   }
 
   const handleDownloadDone = () => {
@@ -120,7 +118,6 @@ export function ArtifactCard({ artifact, delay = 0 }: ArtifactCardProps) {
         hovered && 'shadow-lg -translate-y-0.5',
       )}
     >
-      {/* Hover glow backdrop */}
       <motion.div
         className="absolute inset-0 rounded-xl pointer-events-none"
         animate={{ opacity: hovered ? 1 : 0 }}
@@ -131,7 +128,6 @@ export function ArtifactCard({ artifact, delay = 0 }: ArtifactCardProps) {
       {/* ── Header ─────────────────────────────────────────── */}
       <div className="relative flex items-start gap-3.5">
 
-        {/* Icon */}
         <motion.div
           className={cn(
             'w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0',
@@ -143,24 +139,19 @@ export function ArtifactCard({ artifact, delay = 0 }: ArtifactCardProps) {
           <Icon className={cn('w-5 h-5', config.iconColor)} aria-hidden="true" />
         </motion.div>
 
-        {/* Text */}
         <div className="flex-1 min-w-0">
-          {/* Badge */}
           <span className={cn('inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide', config.badge)}>
             {config.label}
           </span>
 
-          {/* Title */}
           <p className="text-sm font-semibold text-foreground mt-1 leading-snug line-clamp-2">
             {artifact.title}
           </p>
 
-          {/* Description */}
           <p className="text-xs text-muted-foreground mt-1 leading-relaxed line-clamp-2">
             {artifact.description}
           </p>
 
-          {/* Meta row */}
           <div className="flex items-center gap-3 mt-2">
             <span className="flex items-center gap-1 text-[10px] text-muted-foreground/70">
               <Calendar className="w-2.5 h-2.5 flex-shrink-0" aria-hidden="true" />
@@ -179,7 +170,6 @@ export function ArtifactCard({ artifact, delay = 0 }: ArtifactCardProps) {
       {/* ── Actions ────────────────────────────────────────── */}
       <div className="relative flex items-center gap-1.5 pt-3 border-t border-border">
 
-        {/* Preview */}
         <motion.a
           href={artifact.s3Url}
           target="_blank"
@@ -194,7 +184,6 @@ export function ArtifactCard({ artifact, delay = 0 }: ArtifactCardProps) {
           Preview
         </motion.a>
 
-        {/* Download */}
         <motion.button
           type="button"
           onClick={handleDownload}
@@ -244,7 +233,6 @@ export function ArtifactCard({ artifact, delay = 0 }: ArtifactCardProps) {
           </AnimatePresence>
         </motion.button>
 
-        {/* Share */}
         <motion.button
           type="button"
           aria-label={`Share ${artifact.title}`}
@@ -258,7 +246,6 @@ export function ArtifactCard({ artifact, delay = 0 }: ArtifactCardProps) {
         </motion.button>
       </div>
 
-      {/* Download progress bar — sits flush at card bottom */}
       <AnimatePresence>
         {downloading && <DownloadBar onDone={handleDownloadDone} />}
       </AnimatePresence>

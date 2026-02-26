@@ -1,14 +1,6 @@
-/**
- * app/chat/loading.tsx — AI Chat page skeleton
- *
- * Mirrors: header strip → alternating AI/user messages → code block bubble →
- * typing indicator dots → suggested prompts row → input bar → context sidebar.
- */
-
 import { AppShell } from '@/components/layouts/AppShell'
 import { Skeleton } from '@/components/ui/SkeletonCard'
 
-// ─── Right sidebar ────────────────────────────────────────────────────────────
 
 function ChatContextSidebarSkeleton() {
   return (
@@ -17,23 +9,19 @@ function ChatContextSidebarSkeleton() {
       aria-hidden="true"
     >
       <Skeleton className="h-2.5 w-28 rounded" />
-      {/* Error type card */}
       <div className="p-3 bg-card border border-border rounded-xl space-y-1.5">
         <Skeleton className="h-2 w-16" />
         <Skeleton className="h-4 w-36" />
       </div>
-      {/* Context card */}
       <div className="p-3 bg-card border border-border rounded-xl space-y-1.5">
         <Skeleton className="h-2 w-12" />
         <Skeleton className="h-3 w-full" />
         <Skeleton className="h-3 w-3/4" />
       </div>
-      {/* Session ID card */}
       <div className="p-3 bg-card border border-border rounded-xl space-y-1.5">
         <Skeleton className="h-2 w-16" />
         <Skeleton className="h-3 w-full" />
       </div>
-      {/* Message count */}
       <div className="p-3 bg-card border border-border rounded-xl space-y-1.5">
         <Skeleton className="h-2 w-20" />
         <Skeleton className="h-5 w-8" />
@@ -42,7 +30,6 @@ function ChatContextSidebarSkeleton() {
   )
 }
 
-// ─── AI message bubble ────────────────────────────────────────────────────────
 
 function AIMessageSkeleton({ lines = 3 }: { lines?: number }) {
   return (
@@ -64,7 +51,6 @@ function AIMessageSkeleton({ lines = 3 }: { lines?: number }) {
   )
 }
 
-// ─── User message bubble ──────────────────────────────────────────────────────
 
 function UserMessageSkeleton() {
   return (
@@ -81,7 +67,6 @@ function UserMessageSkeleton() {
   )
 }
 
-// ─── AI message with inline code block ───────────────────────────────────────
 
 function AICodeMessageSkeleton() {
   return (
@@ -91,7 +76,6 @@ function AICodeMessageSkeleton() {
         <div className="rounded-2xl rounded-bl-sm bg-card border border-border p-4 space-y-2">
           <Skeleton className="h-3 w-52" />
           <Skeleton className="h-3 w-44" />
-          {/* Code block */}
           <div className="rounded-lg bg-muted/60 border border-border/60 p-3 space-y-1.5 my-1">
             {[80, 65, 55, 70, 48].map((w, i) => (
               <div key={i} className="flex gap-2 items-center">
@@ -108,7 +92,6 @@ function AICodeMessageSkeleton() {
   )
 }
 
-// ─── Typing indicator ─────────────────────────────────────────────────────────
 
 function TypingIndicatorSkeleton() {
   return (
@@ -123,7 +106,6 @@ function TypingIndicatorSkeleton() {
   )
 }
 
-// ─── Default export ───────────────────────────────────────────────────────────
 
 export default function ChatLoading() {
   return (
@@ -144,7 +126,6 @@ export default function ChatLoading() {
             </div>
           </div>
 
-          {/* Message list */}
           <div className="flex-1 overflow-hidden px-6 py-6 space-y-5">
             <AIMessageSkeleton lines={3} />
             <UserMessageSkeleton />
@@ -154,14 +135,12 @@ export default function ChatLoading() {
             <TypingIndicatorSkeleton />
           </div>
 
-          {/* Suggested prompts strip */}
           <div className="px-6 pb-3 flex gap-2 flex-wrap flex-shrink-0" aria-hidden="true">
             {[88, 120, 104, 136, 96].map((w, i) => (
               <Skeleton key={i} className="h-7 rounded-full" style={{ width: `${w}px` }} />
             ))}
           </div>
 
-          {/* Input bar */}
           <div className="px-6 pb-6 pt-2 flex-shrink-0">
             <div className="flex items-end gap-3 bg-card border border-border rounded-2xl px-4 py-3">
               <Skeleton className="flex-1 h-5 rounded" />
@@ -173,7 +152,6 @@ export default function ChatLoading() {
           </div>
         </div>
 
-        {/* Right context sidebar */}
         <ChatContextSidebarSkeleton />
       </div>
     </AppShell>

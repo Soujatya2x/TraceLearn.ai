@@ -26,7 +26,6 @@ function getMasteryLabelColor(pct: number): string {
   return 'text-destructive bg-destructive/10 border-destructive/20'
 }
 
-/** Animated number that counts up from 0 to the target value */
 function AnimatedCounter({ value, delay }: { value: number; delay: number }) {
   const count = useMotionValue(0)
   const rounded = useTransform(count, (latest) => Math.round(latest))
@@ -81,7 +80,6 @@ export function ConceptMasteryBar({ concept, index, isGap = false }: ConceptMast
       className="flex flex-col gap-2 group cursor-default"
     >
       <div className="flex items-center justify-between gap-3">
-        {/* Label + badge */}
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-sm font-medium text-foreground truncate transition-colors group-hover:text-foreground/90">
             {concept.category}
@@ -99,7 +97,6 @@ export function ConceptMasteryBar({ concept, index, isGap = false }: ConceptMast
           </motion.span>
         </div>
 
-        {/* Error count + percentage */}
         <div className="flex items-center gap-3 flex-shrink-0">
           {concept.errorFrequency > 0 && (
             <motion.span
@@ -135,17 +132,6 @@ export function ConceptMasteryBar({ concept, index, isGap = false }: ConceptMast
             ease: [0.16, 1, 0.3, 1],
           }}
         >
-          {/* Subtle shimmer sweep */}
-          {/* <motion.span
-            className="absolute inset-0 rounded-full bg-white/20"
-            initial={{ x: '-100%' }}
-            animate={{ x: '200%' }}
-            transition={{
-              duration: 0.6,
-              delay: enterDelay + 0.55,
-              ease: 'easeOut',
-            }}
-          /> */}
         </motion.div>
       </div>
     </motion.div>

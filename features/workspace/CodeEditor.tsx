@@ -10,14 +10,12 @@ import {
 import { useAppStore } from '@/store/useAppStore'
 import { cn } from '@/lib/utils'
 
-// ─── Dynamically import Monaco — never SSR ────────────────────────────────────
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
   loading: () => <EditorSkeleton />,
 })
 
-// ─── Language metadata ────────────────────────────────────────────────────────
 
 const LANG_META: Record<string, { label: string; color: string; dot: string }> = {
   python:     { label: 'Python',     color: 'text-blue-400',   dot: 'bg-blue-400'   },
@@ -28,7 +26,6 @@ const LANG_META: Record<string, { label: string; color: string; dot: string }> =
   plaintext:  { label: 'Plain Text', color: 'text-zinc-400',   dot: 'bg-zinc-400'   },
 }
 
-// ─── Loading skeleton ─────────────────────────────────────────────────────────
 
 function EditorSkeleton() {
   const lines = [72, 100, 55, 88, 40, 95, 60, 100, 45, 78, 35, 90, 65, 80, 50]
@@ -51,7 +48,6 @@ function EditorSkeleton() {
   )
 }
 
-// ─── Toolbar ─────────────────────────────────────────────────────────────────
 
 interface ToolbarProps {
   language: string
@@ -87,7 +83,6 @@ function EditorToolbar({
           </span>
         </motion.div>
 
-        {/* Line count */}
         <span className="text-[10px] text-zinc-600 hidden sm:block">
           {lineCount} lines
         </span>
@@ -97,14 +92,11 @@ function EditorToolbar({
         </span>
       </div>
 
-      {/* Right — controls */}
       <div className="flex items-center gap-0.5">
-        {/* Cursor position */}
         <span className="text-[10px] text-zinc-600 mr-2 font-mono hidden md:block">
           Ln {cursorLine}, Col {cursorCol}
         </span>
 
-        {/* Word wrap toggle */}
         <motion.button
           type="button"
           onClick={onToggleWrap}
@@ -125,7 +117,6 @@ function EditorToolbar({
           }
         </motion.button>
 
-        {/* Copy button */}
         <motion.button
           type="button"
           onClick={onCopy}
@@ -164,7 +155,6 @@ function EditorToolbar({
   )
 }
 
-// ─── Main CodeEditor ──────────────────────────────────────────────────────────
 
 interface CodeEditorProps {
   errorLine?: number
@@ -199,7 +189,6 @@ export function CodeEditor({ errorLine }: CodeEditorProps) {
 
   const monacoTheme = theme === 'dark' ? 'vs-dark' : 'vs'
 
-  // ResizeObserver keeps editorHeight in sync
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -294,7 +283,6 @@ export function CodeEditor({ errorLine }: CodeEditorProps) {
       ref={containerRef}
       className="w-full h-full flex flex-col border-l-2 border-l-primary/20"
     >
-      {/* Toolbar — always visible */}
       <EditorToolbar
         language={monacoLanguage}
         lineCount={lineCount}
@@ -309,7 +297,6 @@ export function CodeEditor({ errorLine }: CodeEditorProps) {
 
       {/* Editor area */}
       <div className="relative flex-1 min-h-0">
-        {/* Skeleton while Monaco loads */}
         <AnimatePresence>
           {!editorMounted && (
             <motion.div
@@ -323,7 +310,6 @@ export function CodeEditor({ errorLine }: CodeEditorProps) {
           )}
         </AnimatePresence>
 
-        {/* Monaco fades in once mounted */}
         <motion.div
           className="w-full"
           initial={{ opacity: 0 }}
@@ -372,7 +358,6 @@ export function CodeEditor({ errorLine }: CodeEditorProps) {
           />
         </motion.div>
 
-        {/* Error line indicator strip on left edge */}
         <AnimatePresence>
           {errorLine && editorMounted && (
             <motion.div
@@ -387,7 +372,6 @@ export function CodeEditor({ errorLine }: CodeEditorProps) {
         </AnimatePresence>
       </div>
 
-      {/* Bottom status bar */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: editorMounted ? 1 : 0 }}

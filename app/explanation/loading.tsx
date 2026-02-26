@@ -1,19 +1,8 @@
-/**
- * app/explanation/loading.tsx — Error Explanation page skeleton
- *
- * Mirrors the real explanation page exactly:
- *   1. Page header (title + subtitle)
- *   2. ErrorTopSection  — error type badge, message, file/line meta, stack trace
- *   3. Divider
- *   4. AIExplanationSection — "Why This Happened" prose, concept callout, step-by-step
- *   5. Divider
- *   6. LearningResourcesSection — 3-up resource cards + similar errors history
- */
+'use client'
 
 import { AppShell } from '@/components/layouts/AppShell'
 import { Skeleton } from '@/components/ui/SkeletonCard'
 
-// ─── 1. Error top section ─────────────────────────────────────────────────────
 
 function ErrorBannerSkeleton() {
   return (
@@ -33,21 +22,18 @@ function ErrorBannerSkeleton() {
         <Skeleton className="h-6 w-20 rounded-full flex-shrink-0" />
       </div>
 
-      {/* File + line meta pills */}
       <div className="flex items-center gap-2 flex-wrap">
         <Skeleton className="h-6 w-28 rounded-full" />
         <Skeleton className="h-6 w-20 rounded-full" />
         <Skeleton className="h-6 w-36 rounded-full" />
       </div>
 
-      {/* Stack trace accordion (expanded state) */}
       <div className="rounded-xl bg-muted/40 border border-border overflow-hidden">
         {/* Accordion header */}
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
           <Skeleton className="h-3 w-24" />
           <Skeleton className="w-4 h-4 rounded" />
         </div>
-        {/* Trace lines — monospace */}
         <div className="p-4 space-y-2">
           {[90, 75, 85, 70, 80, 60].map((w, i) => (
             <div key={i} className="flex gap-3 items-center">
@@ -72,7 +58,6 @@ function ExplanationSectionSkeleton() {
         <Skeleton className="h-4 w-44" />
       </div>
 
-      {/* "Why This Happened" prose — 4 lines */}
       <div className="space-y-2">
         <Skeleton className="h-3 w-full" />
         <Skeleton className="h-3 w-full" />

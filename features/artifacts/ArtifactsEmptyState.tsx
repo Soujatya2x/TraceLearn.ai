@@ -19,9 +19,7 @@ export function ArtifactsEmptyState({ isSearching = false }: ArtifactsEmptyState
       role="status"
       aria-label={isSearching ? 'No search results' : 'No artifacts yet'}
     >
-      {/* Icon container — floats gently when not searching */}
       <div className="relative mb-5">
-        {/* Soft glow ring behind icon */}
         {!isSearching && (
           <motion.div
             className="absolute inset-0 rounded-2xl bg-primary/10 blur-xl"
@@ -59,7 +57,6 @@ export function ArtifactsEmptyState({ isSearching = false }: ArtifactsEmptyState
         </motion.div>
       </div>
 
-      {/* Heading */}
       <motion.h3
         className="text-base font-semibold text-foreground"
         initial={{ opacity: 0, y: 6 }}
@@ -81,7 +78,6 @@ export function ArtifactsEmptyState({ isSearching = false }: ArtifactsEmptyState
           : 'Complete an analysis session to generate PDF reports, presentations, and summaries.'}
       </motion.p>
 
-      {/* CTA */}
       {!isSearching && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}

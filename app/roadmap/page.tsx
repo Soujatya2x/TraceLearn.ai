@@ -197,7 +197,6 @@ export default function RoadmapPage() {
 
   const roadmap = roadmapData ?? MOCK_ROADMAP
 
-  // Derived stats for summary cards
   const avgMastery = Math.round(
     roadmap.conceptMastery.reduce((acc, c) => acc + c.masteryPercentage, 0) /
       roadmap.conceptMastery.length,
@@ -292,7 +291,7 @@ export default function RoadmapPage() {
                 ))}
               </div>
 
-              {/* Radar chart */}
+              {/* chart */}
               <div className="flex flex-col gap-3">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Skill Radar

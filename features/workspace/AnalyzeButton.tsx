@@ -12,7 +12,6 @@ interface AnalyzeButtonProps {
   disabled?: boolean
 }
 
-// ─── Per-status config ────────────────────────────────────────────────────────
 
 const STATUS_CONFIG = {
   idle: {
@@ -65,7 +64,6 @@ const STATUS_CONFIG = {
   spin: boolean
 }>
 
-// ─── Click-origin burst particle ─────────────────────────────────────────────
 
 function BurstDot({ angle, delay }: { angle: number; delay: number }) {
   const rad = (angle * Math.PI) / 180
@@ -84,7 +82,6 @@ function BurstDot({ angle, delay }: { angle: number; delay: number }) {
   )
 }
 
-// ─── Shimmer sweep overlay (shown during loading states) ─────────────────────
 
 function LoadingShimmer() {
   return (
@@ -109,7 +106,6 @@ function LoadingShimmer() {
   )
 }
 
-// ─── Pulse ring (idle only) ───────────────────────────────────────────────────
 
 function PulseRing({ color }: { color: string }) {
   return (
@@ -122,7 +118,6 @@ function PulseRing({ color }: { color: string }) {
   )
 }
 
-// ─── Main button ──────────────────────────────────────────────────────────────
 
 export function AnalyzeButton({ status, onClick, disabled }: AnalyzeButtonProps) {
   const config           = STATUS_CONFIG[status]
@@ -167,7 +162,6 @@ export function AnalyzeButton({ status, onClick, disabled }: AnalyzeButtonProps)
             : 'cursor-pointer',
         )}
       >
-        {/* Animated gradient background */}
         <motion.span
           className={cn('absolute inset-0 bg-gradient-to-r', config.bg)}
           key={status}
@@ -177,7 +171,6 @@ export function AnalyzeButton({ status, onClick, disabled }: AnalyzeButtonProps)
           aria-hidden="true"
         />
 
-        {/* Analyzing: gradient sweeps L→R */}
         {status === 'analyzing' && !prefersReduced && (
           <motion.span
             className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
@@ -188,19 +181,16 @@ export function AnalyzeButton({ status, onClick, disabled }: AnalyzeButtonProps)
           />
         )}
 
-        {/* Loading shimmer sweep */}
         <AnimatePresence>
           {isLoading && !prefersReduced && <LoadingShimmer />}
         </AnimatePresence>
 
-        {/* Idle pulse ring */}
         <AnimatePresence>
           {status === 'idle' && !prefersReduced && !disabled && (
             <PulseRing color={STATUS_CONFIG.idle.glow} />
           )}
         </AnimatePresence>
 
-        {/* Click burst particles */}
         <AnimatePresence>
           {bursts.map((id) =>
             burstAngles.map((angle, i) => (
@@ -209,7 +199,6 @@ export function AnalyzeButton({ status, onClick, disabled }: AnalyzeButtonProps)
           )}
         </AnimatePresence>
 
-        {/* Content — swaps between statuses */}
         <AnimatePresence mode="wait">
           <motion.span
             key={status}
@@ -240,7 +229,6 @@ export function AnalyzeButton({ status, onClick, disabled }: AnalyzeButtonProps)
         </AnimatePresence>
       </motion.button>
 
-      {/* External glow shadow — transitions with status */}
       {!isDisabled && !prefersReduced && (
         <motion.div
           className="absolute inset-0 -z-10 rounded-xl blur-md"

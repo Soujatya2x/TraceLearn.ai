@@ -68,9 +68,7 @@ export function RecommendedTopicCard({ topic, index }: RecommendedTopicCardProps
       </div>
 
       <div className="p-5">
-        {/* Header row */}
         <div className="flex items-start gap-3">
-          {/* Category icon */}
           <motion.div
             whileHover={{ scale: 1.08, rotate: 3 }}
             transition={{ duration: 0.2 }}

@@ -1,9 +1,4 @@
-/**
- * app/artifacts/loading.tsx — Artifacts page skeleton
- *
- * Mirrors: page header → 4-up stats row → filter/search bar →
- * 3-column artifact card grid (6 cards, each matching the real ArtifactCard layout).
- */
+'use client'
 
 import { AppShell } from '@/components/layouts/AppShell'
 import {

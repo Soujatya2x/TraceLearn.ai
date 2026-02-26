@@ -10,7 +10,6 @@ interface LearningResourcesSectionProps {
   explanation: ErrorExplanation
 }
 
-// ─── Type badge config ────────────────────────────────────────
 
 const TYPE_STYLES: Record<string, { pill: string; dot: string }> = {
   documentation: { pill: 'bg-primary/10 text-primary',         dot: 'bg-primary'     },
@@ -19,13 +18,11 @@ const TYPE_STYLES: Record<string, { pill: string; dot: string }> = {
   tutorial:      { pill: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400', dot: 'bg-emerald-500' },
 }
 
-// ─── Section ─────────────────────────────────────────────────
 
 export function LearningResourcesSection({ explanation }: LearningResourcesSectionProps) {
   return (
     <motion.div variants={staggerItem} className="space-y-6">
 
-      {/* ── Learning Resources ───────────────────────────── */}
       <div>
         <div className="flex items-center gap-2 mb-3">
           <BookMarked className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
@@ -53,7 +50,6 @@ export function LearningResourcesSection({ explanation }: LearningResourcesSecti
                 className="group flex items-start gap-3 p-4 bg-card border border-border rounded-xl hover:border-primary/30 hover:shadow-sm transition-colors"
                 aria-label={`${resource.title} — ${resource.source}`}
               >
-                {/* Type dot */}
                 <span className={cn('w-2 h-2 rounded-full flex-shrink-0 mt-1.5', styles.dot)} aria-hidden="true" />
 
                 <div className="flex-1 min-w-0 space-y-0.5">
@@ -79,7 +75,6 @@ export function LearningResourcesSection({ explanation }: LearningResourcesSecti
         </motion.div>
       </div>
 
-      {/* ── Similar errors history ────────────────────────── */}
       {explanation.similarErrorsHistory.length > 0 && (
         <div>
           <div className="flex items-center gap-2 mb-3">

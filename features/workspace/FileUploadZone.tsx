@@ -13,7 +13,6 @@ interface FileUploadZoneProps {
   hint?: string
 }
 
-// ─── Orbit particle (shown during drag) ──────────────────────────────────────
 
 function OrbitParticle({ angle, radius, delay }: { angle: number; radius: number; delay: number }) {
   return (
@@ -47,7 +46,6 @@ function OrbitParticle({ angle, radius, delay }: { angle: number; radius: number
   )
 }
 
-// ─── Upload progress bar shown briefly after file picked ─────────────────────
 
 function UploadProgressBar({ onDone }: { onDone: () => void }) {
   return (
@@ -67,7 +65,6 @@ function UploadProgressBar({ onDone }: { onDone: () => void }) {
   )
 }
 
-// ─── Shimmer sweep on the uploaded file card ─────────────────────────────────
 
 function ShimmerSweep() {
   return (
@@ -85,7 +82,6 @@ function ShimmerSweep() {
   )
 }
 
-// ─── Floating dot particles that burst on drop ───────────────────────────────
 
 function BurstParticle({ angle }: { angle: number }) {
   const rad = (angle * Math.PI) / 180
@@ -104,7 +100,6 @@ function BurstParticle({ angle }: { angle: number }) {
   )
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
 
 export function FileUploadZone({
   label,
@@ -179,7 +174,6 @@ export function FileUploadZone({
     [handleFile],
   )
 
-  // Orbit particle positions (8 dots)
   const orbitAngles = [0, 45, 90, 135, 180, 225, 270, 315]
 
   return (
@@ -191,7 +185,6 @@ export function FileUploadZone({
 
       <AnimatePresence mode="wait">
 
-        {/* ── Uploaded file card ─────────────────────────── */}
         {currentFile ? (
           <motion.div
             key="file-card"
@@ -201,10 +194,8 @@ export function FileUploadZone({
             transition={{ type: 'spring', stiffness: 420, damping: 26 }}
             className="relative flex items-center gap-3 px-3 py-3 bg-emerald-500/8 border border-emerald-500/25 rounded-xl overflow-hidden"
           >
-            {/* Shimmer sweep on entry */}
             <ShimmerSweep />
 
-            {/* Subtle left accent bar */}
             <motion.span
               className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-emerald-500"
               initial={{ scaleY: 0 }}
@@ -213,7 +204,6 @@ export function FileUploadZone({
               style={{ originY: 0.5 }}
             />
 
-            {/* Icon with pop */}
             <motion.div
               initial={{ scale: 0, rotate: -20 }}
               animate={{ scale: 1, rotate: 0 }}
@@ -223,7 +213,6 @@ export function FileUploadZone({
               <FileText className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             </motion.div>
 
-            {/* File info — staggered reveal */}
             <div className="flex-1 min-w-0">
               <motion.p
                 initial={{ opacity: 0, x: -8 }}
@@ -243,7 +232,6 @@ export function FileUploadZone({
               </motion.p>
             </div>
 
-            {/* Checkmark badge */}
             <motion.div
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -253,7 +241,6 @@ export function FileUploadZone({
               <CheckCircle2 className="w-4 h-4 text-emerald-500" />
             </motion.div>
 
-            {/* Remove button */}
             <motion.button
               type="button"
               onClick={() => onFile(null)}
@@ -269,7 +256,6 @@ export function FileUploadZone({
 
         ) : (
 
-          /* ── Drop zone ─────────────────────────────────── */
           <motion.label
             key="dropzone"
             htmlFor={`upload-${label}`}
@@ -295,7 +281,6 @@ export function FileUploadZone({
                 : 'border-border hover:border-primary/40 hover:bg-muted/40',
             )}
           >
-            {/* ── Animated corner accents on hover ── */}
             {(['tl', 'tr', 'bl', 'br'] as const).map((pos) => (
               <motion.span
                 key={pos}
@@ -320,7 +305,6 @@ export function FileUploadZone({
               />
             ))}
 
-            {/* ── Orbit particles during drag ── */}
             <AnimatePresence>
               {isDragging && (
                 <motion.div
@@ -337,7 +321,6 @@ export function FileUploadZone({
               )}
             </AnimatePresence>
 
-            {/* ── Burst particles on drop ── */}
             <AnimatePresence>
               {showBurst && (
                 <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
@@ -348,7 +331,6 @@ export function FileUploadZone({
               )}
             </AnimatePresence>
 
-            {/* ── Radial glow backdrop when dragging ── */}
             <AnimatePresence>
               {isDragging && (
                 <motion.span
@@ -365,7 +347,6 @@ export function FileUploadZone({
               )}
             </AnimatePresence>
 
-            {/* ── Upload icon: morphs between idle / hover / dragging ── */}
             <div className="relative">
               <motion.div
                 className={cn(
@@ -415,7 +396,6 @@ export function FileUploadZone({
               </motion.div>
             </div>
 
-            {/* ── Text area ── */}
             <div className="text-center space-y-0.5">
               <AnimatePresence mode="wait">
                 {isDragging ? (
@@ -448,7 +428,6 @@ export function FileUploadZone({
               )}
             </div>
 
-            {/* ── Progress bar shown while "uploading" ── */}
             <AnimatePresence>
               {isUploading && (
                 <UploadProgressBar onDone={() => setIsUploading(false)} />
