@@ -1,35 +1,20 @@
-// ============================================================
-// TraceLearn.ai — Global Zustand Store
-// ============================================================
-
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import type { AnalysisStatus, Language, Session } from '@/types'
 
-// ─── State Shape ─────────────────────────────────────────────
-
 export type Theme = 'light' | 'dark'
 
 interface AppState {
-  // Current session
   currentSessionId: string | null
   currentSession: Session | null
   analysisStatus: AnalysisStatus
-
-  // Code workspace
   code: string
   language: Language
   logFile: File | null
   projectFiles: File[]
-
-  // Polling
   isPolling: boolean
-
-  // UI
   sidebarOpen: boolean
   theme: Theme
-
-  // Actions
   setCurrentSessionId: (id: string | null) => void
   setCurrentSession: (session: Session | null) => void
   setAnalysisStatus: (status: AnalysisStatus) => void
@@ -44,8 +29,6 @@ interface AppState {
   resetWorkspace: () => void
 }
 
-// ─── Initial State ───────────────────────────────────────────
-
 const INITIAL_CODE = `# Paste or type your code here
 def calculate_average(numbers):
     total = sum(numbers)
@@ -55,31 +38,20 @@ result = calculate_average([])
 print(f"Average: {result}")
 `
 
-// ─── Store ───────────────────────────────────────────────────
-
 export const useAppStore = create<AppState>()(
   devtools(
     persist(
       (set, get) => ({
-        // Current session
         currentSessionId: null,
         currentSession: null,
         analysisStatus: 'idle',
-
-        // Code workspace
         code: INITIAL_CODE,
         language: 'python',
         logFile: null,
         projectFiles: [],
-
-        // Polling
         isPolling: false,
-
-        // UI
         sidebarOpen: true,
-        theme: 'light',
-
-        // Actions
+        theme: 'dark',
         setCurrentSessionId: (id) => set({ currentSessionId: id }),
         setCurrentSession: (session) => set({ currentSession: session }),
         setAnalysisStatus: (status) => set({ analysisStatus: status }),

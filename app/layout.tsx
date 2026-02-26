@@ -8,7 +8,6 @@ import { AuthProvider } from "@/components/providers/AuthProvider";
 
 import "./globals.css";
 
-
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
@@ -21,14 +20,11 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
-
 export const metadata: Metadata = {
   title: "TraceLearn.ai",
   description:
     "Analyze code errors, understand root causes, and build a personalized AI learning roadmap.",
-
   manifest: "/manifest.json",
-
   openGraph: {
     title: "TraceLearn.ai",
     description: "AI-Powered Developer Learning Platform",
@@ -36,12 +32,10 @@ export const metadata: Metadata = {
   },
 };
 
-
 export const viewport: Viewport = {
   themeColor: "#4f46e5",
   userScalable: false,
 };
-
 
 export default function RootLayout({
   children,
@@ -55,31 +49,34 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="font-sans antialiased bg-background text-foreground transition-colors duration-200">
-        
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function () {
                 try {
                   var s = localStorage.getItem('tracelearn-storage');
+                  var theme = 'dark';
                   if (s) {
-                    var t = JSON.parse(s);
-                    if (t?.state?.theme === 'dark') {
-                      document.documentElement.classList.add('dark');
-                    }
+                    var parsed = JSON.parse(s);
+                    if (parsed?.state?.theme) theme = parsed.state.theme;
                   }
-                } catch (e) {}
+                  if (theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                  } else {
+                    document.documentElement.classList.remove('dark');
+                  }
+                } catch (e) {
+                  document.documentElement.classList.add('dark');
+                }
               })();
             `,
           }}
         />
-
         <QueryProvider>
           <ThemeProvider>
             <AuthProvider>{children}</AuthProvider>
           </ThemeProvider>
         </QueryProvider>
-
         <Analytics />
       </body>
     </html>
