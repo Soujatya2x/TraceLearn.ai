@@ -1,0 +1,71 @@
+version: '3.9'
+
+services:
+  # ── System Brain Backend ──
+  system-brain:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tracelearn-system-brain
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-tracelearn}
+      - DB_USERNAME=${DB_USERNAME:-tracelearn}
+      - DB_PASSWORD=${DB_PASSWORD:-changeme}
+      - JWT_SECRET=${JWT_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - SANDBOX_URL=${SANDBOX_URL:-http://sandbox:8081}
+      - AI_AGENT_URL=${AI_AGENT_URL:-http://ai-agent:8082}
+      - S3_BUCKET=${S3_BUCKET:-tracelearn-artifacts}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      - WORKSPACE_ROOT=/tmp/tracelearn/workspaces
+    volumes:
+      - workspace-data:/tmp/tracelearn/workspaces
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - tracelearn-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/v1/health/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ── PostgreSQL (local dev) ──
+  postgres:
+    image: postgres:16-alpine
+    container_name: tracelearn-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=${DB_NAME:-tracelearn}
+      - POSTGRES_USER=${DB_USERNAME:-tracelearn}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-changeme}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - tracelearn-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-tracelearn}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-data:
+  workspace-data:
+
+networks:
+  tracelearn-network:
+    driver: bridge
