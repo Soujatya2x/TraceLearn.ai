@@ -153,32 +153,41 @@ export interface ChatSession {
 
 export interface SendMessageRequest {
   sessionId: string
-  content: string
+  message: string   // matches ChatMessageRequest.message in backend — NOT "content"
 }
 
 // ─── Artifacts ───────────────────────────────────────────────
 
 export type ArtifactType = 'pdf' | 'ppt' | 'summary'
 
+/**
+ * One artifact card — matches ArtifactResponse.ArtifactEntry in backend.
+ * Field names are deliberately aligned: s3Url (not pdfUrl/pptUrl), generatedAt (not createdAt).
+ */
 export interface Artifact {
   id: string
   sessionId: string
-  type: ArtifactType
+  type: ArtifactType       // "pdf" | "ppt" | "summary"
   title: string
   description: string
-  s3Url: string
-  generatedAt: string
-  size?: number
+  s3Url: string            // presigned S3 URL — do not cache, re-fetch when needed
+  generatedAt: string      // ISO-8601 timestamp
+  size?: number            // bytes, optional
 }
 
+/**
+ * Full response from GET /api/v1/artifacts/{sessionId}.
+ * Matches ArtifactResponse in backend.
+ */
 export interface ArtifactsResponse {
   sessionId: string
-  artifacts: Artifact[]
+  artifacts: Artifact[]          // one entry per generated file type
   learningMetrics: LearningMetrics
 }
 
 // ─── Roadmap ─────────────────────────────────────────────────
 
+// ConceptCategory values match the normalizeConceptName() mapping in OrchestrationService
 export type ConceptCategory =
   | 'Variables'
   | 'Control Flow'
@@ -188,16 +197,36 @@ export type ConceptCategory =
   | 'Data Structures'
   | 'Algorithms'
   | 'Async'
+  | string  // pass-through for AI Agent concepts not in the known list
 
 export type Priority = 'high' | 'medium' | 'low'
 
+/**
+ * One concept bar — matches RoadmapResponse.ConceptMastery in backend.
+ * lastSeen is an ISO-8601 string (Instant serialized by Jackson).
+ */
 export interface ConceptMastery {
   category: ConceptCategory
-  masteryPercentage: number
-  errorFrequency: number
-  lastSeen: string
+  masteryPercentage: number    // 0–100
+  errorFrequency: number       // total encounter count
+  lastSeen: string             // ISO-8601
 }
 
+/**
+ * One resource link inside a topic or next step.
+ * Matches RoadmapResponse.TopicResource in backend.
+ * Note: source field is populated from URL hostname server-side.
+ */
+export interface RoadmapResource {
+  title: string
+  url: string
+  type: string    // "documentation" | "article" | "video" | "tutorial"
+  source: string  // e.g. "python.org"
+}
+
+/**
+ * One topic card — matches RoadmapResponse.RecommendedTopic in backend.
+ */
 export interface RecommendedTopic {
   id: string
   title: string
@@ -205,17 +234,25 @@ export interface RecommendedTopic {
   estimatedMinutes: number
   priority: Priority
   category: ConceptCategory
-  resourceLinks: LearningResource[]
+  resourceLinks: RoadmapResource[]
 }
 
+/**
+ * One next-step card — matches RoadmapResponse.NextStep in backend.
+ */
 export interface NextStep {
   id: string
   action: string
   description: string
-  resourceLinks: LearningResource[]
+  resourceLinks: RoadmapResource[]
   practiceExercises: string[]
 }
 
+/**
+ * Full roadmap response — matches RoadmapResponse in backend.
+ * userId is a UUID string (Jackson serializes UUID as string by default).
+ * generatedAt is an ISO-8601 string.
+ */
 export interface LearningRoadmap {
   userId: string
   conceptMastery: ConceptMastery[]
@@ -273,4 +310,75 @@ export interface PollingState {
   interval: number
   maxAttempts: number
   currentAttempt: number
+}
+
+// ─── Backend API Types (actual shapes returned by backend) ───
+//
+// These mirror the Java DTOs exactly. The frontend-facing types above
+// (ErrorExplanation, ValidationResult, etc.) are richer UI models —
+// use the mapping functions in analysisService.ts to convert between them.
+
+export interface BackendAnalysis {
+  id: string
+  // Core explanation
+  explanation?: string
+  stackTrace?: string                  // raw multiline string
+  whyItHappened?: string
+  conceptBehindError?: string          // plain string, not an object
+  stepByStepReasoning?: string[]
+  // Fix
+  fixedCode?: string
+  fixAnalysis?: {
+    whatChanged: string
+    whyItWorks: string
+    reinforcedConcept: string
+  }
+  // Learning
+  conceptBreakdown?: string
+  learningSummary?: string
+  learningResources?: BackendLearningResource[]
+  similarErrors?: BackendSimilarError[]
+  confidenceScore?: number
+  retryRecommendation?: boolean
+  // Error location
+  errorType?: string
+  errorFile?: string
+  errorLine?: number
+  createdAt?: string
+}
+
+export interface BackendLearningResource {
+  title: string
+  url: string
+  type: string   // "documentation" | "article" | "video" | "tutorial"
+}
+
+export interface BackendSimilarError {
+  errorType: string
+  description: string
+  example: string
+}
+
+export interface BackendExecutionAttempt {
+  id: string
+  attemptNumber: number
+  stdout?: string
+  stderr?: string
+  exitCode?: number
+  executionTimeMs?: number
+  status: 'SUCCESS' | 'FAILED' | 'ERROR' | 'RUNNING' | 'PENDING'
+  createdAt?: string
+}
+
+export interface BackendSession {
+  sessionId: string
+  language: string
+  status: string
+  retryCount: number
+  originalCode?: string
+  originalLogs?: string
+  createdAt?: string
+  updatedAt?: string
+  executionAttempts?: BackendExecutionAttempt[]
+  aiAnalysis?: BackendAnalysis
 }

@@ -21,7 +21,7 @@ import {
   AlertTriangle,
   CheckCircle2,
 } from 'lucide-react'
-import type { LearningRoadmap } from '@/types'
+import type { LearningRoadmap, RoadmapResource } from '@/types'
 
 // ─── Rich mock data ───────────────────────────────────────────────────────────
 
@@ -191,9 +191,8 @@ function SectionHeader({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function RoadmapPage() {
-  const { currentSessionId } = useAppStore()
-  // In production, userId would come from auth; using session as proxy
-  const { data: roadmapData, isLoading, refetch, isFetching } = useRoadmap(currentSessionId)
+  const { userId } = useAppStore()
+  const { data: roadmapData, isLoading, refetch, isFetching } = useRoadmap(userId)
 
   const roadmap = roadmapData ?? MOCK_ROADMAP
 

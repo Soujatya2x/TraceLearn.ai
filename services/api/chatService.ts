@@ -1,12 +1,13 @@
-// ============================================================
-// TraceLearn.ai — Chat Service
-// ============================================================
 
 import apiClient from './client'
 import { API_ENDPOINTS } from './endpoints'
-import type { ApiResponse, ChatMessage, ChatSession, SendMessageRequest } from '@/types'
+import type { ApiResponse, ChatSession, SendMessageRequest } from '@/types'
 
-// ─── Get Chat History ────────────────────────────────────────
+// ─── Get Chat Session ─────────────────────────────────────────
+//
+// GET /api/v1/chat/{sessionId}
+// Returns ChatSessionResponse from backend — already matches ChatSession type:
+//   sessionId, errorType, errorContext, messages[], suggestedPrompts[], createdAt
 
 export async function getChatSession(sessionId: string): Promise<ChatSession> {
   const response = await apiClient.get<ApiResponse<ChatSession>>(
@@ -15,14 +16,16 @@ export async function getChatSession(sessionId: string): Promise<ChatSession> {
   return response.data.data
 }
 
-// ─── Send Message ────────────────────────────────────────────
+// ─── Send Message ─────────────────────────────────────────────
+//
+// POST /api/v1/chat/message
+// Returns 202 Accepted with no body — AI reply comes via WebSocket.
+// Backend expects: { sessionId: UUID, message: string }
+// NOTE: field is "message" not "content" — matches ChatMessageRequest.java
 
-export async function sendChatMessage(
-  payload: SendMessageRequest,
-): Promise<ChatMessage> {
-  const response = await apiClient.post<ApiResponse<ChatMessage>>(
+export async function sendChatMessage(payload: SendMessageRequest): Promise<void> {
+  await apiClient.post(
     API_ENDPOINTS.CHAT_MESSAGE,
     payload,
   )
-  return response.data.data
 }

@@ -31,4 +31,15 @@ public class ChatMessage extends BaseEntity {
     @Column(name = "timestamp", nullable = false)
     @Builder.Default
     private Instant timestamp = Instant.now();
+
+    /**
+     * Suggested follow-up prompts from the AI Agent — only populated on ASSISTANT messages.
+     * Stored as a JSON array string, e.g. ["What is a guard clause?", "Show me the fix"].
+     * NULL on USER and SYSTEM messages.
+     *
+     * Deserialized by ChatService.getChatSessionResponse() when building ChatSessionResponse.
+     * This avoids a separate join table for what is essentially display-only data.
+     */
+    @Column(name = "suggested_follow_ups", columnDefinition = "TEXT")
+    private String suggestedFollowUpsJson;
 }

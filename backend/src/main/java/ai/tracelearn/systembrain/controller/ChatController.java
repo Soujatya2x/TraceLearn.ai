@@ -3,7 +3,7 @@ package ai.tracelearn.systembrain.controller;
 import ai.tracelearn.systembrain.domain.User;
 import ai.tracelearn.systembrain.dto.ApiResponse;
 import ai.tracelearn.systembrain.dto.ChatMessageRequest;
-import ai.tracelearn.systembrain.dto.ChatMessageResponse;
+import ai.tracelearn.systembrain.dto.ChatSessionResponse;
 import ai.tracelearn.systembrain.exception.ResourceNotFoundException;
 import ai.tracelearn.systembrain.repository.UserRepository;
 import ai.tracelearn.systembrain.security.UserPrincipal;
@@ -16,22 +16,17 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 /**
  * Chat endpoints per the immutable API contract:
  *   POST /api/v1/chat/message     - Send a chat message within a session
- *   GET  /api/v1/chat/{sessionId} - Retrieve chat history for a session
+ *   GET  /api/v1/chat/{sessionId} - Retrieve full chat session (messages + context + suggested prompts)
  *
- * All chats are isolated per session as required.
- *
- * NOTE on POST /message response contract change:
- *   Previously returned 200 + ChatMessageResponse (AI reply inline).
- *   Now returns 202 Accepted with no body — AI reply is pushed async
- *   via WebSocket on /topic/session/{sessionId} as type=CHAT_REPLY.
- *   This is required because the AI inference call is no longer blocking
- *   the HTTP thread; the reply arrives out-of-band.
+ * NOTE on POST /message response:
+ *   Returns 202 Accepted immediately — AI reply is pushed async via WebSocket
+ *   on /topic/session/{sessionId} as type=CHAT_REPLY.
+ *   Frontend must subscribe to the WebSocket topic BEFORE calling this endpoint.
  */
 @Slf4j
 @RestController
@@ -46,13 +41,10 @@ public class ChatController {
     /**
      * POST /api/v1/chat/message
      *
-     * Accepts the user's message, saves it, and immediately returns 202 Accepted.
-     * The AI reply is delivered asynchronously via WebSocket:
-     *   destination : /topic/session/{sessionId}
-     *   payload type: CHAT_REPLY
+     * Request body: { "sessionId": "uuid", "message": "user text" }
      *
-     * Frontend must be subscribed to the session WebSocket topic before sending
-     * this request, otherwise the reply notification will be missed.
+     * Saves the user message and triggers async AI inference.
+     * Returns 202 Accepted — AI reply arrives via WebSocket (type=CHAT_REPLY).
      */
     @PostMapping("/message")
     public ResponseEntity<Void> sendMessage(
@@ -66,23 +58,28 @@ public class ChatController {
 
         orchestrationService.processChat(request.getSessionId(), user, request.getMessage());
 
-        // 202 Accepted — message saved, AI reply coming via WebSocket
         return ResponseEntity.accepted().build();
     }
 
     /**
      * GET /api/v1/chat/{sessionId}
-     * Retrieve the full chat history for a session.
-     * Chats remain isolated per session as required.
+     *
+     * Returns ChatSessionResponse — the complete shape the frontend ChatSession interface requires:
+     *   - sessionId, createdAt          — for session context sidebar
+     *   - errorType, errorContext        — for chat header display
+     *   - messages[]                     — full ordered chat history
+     *   - suggestedPrompts[]             — follow-up chips from the latest AI reply
+     *
+     * Previously returned List<ChatMessageResponse> which was missing all context fields.
      */
     @GetMapping("/{sessionId}")
-    public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> getChatHistory(
+    public ResponseEntity<ApiResponse<ChatSessionResponse>> getChatHistory(
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable UUID sessionId) {
 
         log.info("GET /api/v1/chat/{} from user {}", sessionId, principal.getId());
 
-        List<ChatMessageResponse> messages = chatService.getSessionChatHistory(sessionId);
-        return ResponseEntity.ok(ApiResponse.success(messages));
+        ChatSessionResponse response = chatService.getChatSessionResponse(sessionId);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

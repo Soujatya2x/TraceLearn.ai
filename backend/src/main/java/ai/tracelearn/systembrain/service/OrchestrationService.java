@@ -167,7 +167,7 @@ public class OrchestrationService {
                 .build();
 
         AiChatResponse aiResponse = aiAgentClient.chat(chatReq);
-        ChatMessage assistantMsg = chatService.saveAssistantMessage(session, aiResponse.getReply());
+        ChatMessage assistantMsg = chatService.saveAssistantMessage(session, aiResponse.getReply(), aiResponse.getSuggestedFollowUps());
 
         return ChatMessageResponse.builder()
                 .id(assistantMsg.getId())
@@ -181,10 +181,19 @@ public class OrchestrationService {
 
     /**
      * Generate a personalized learning roadmap based on accumulated session metrics.
+     *
+     * Maps all data into the RoadmapResponse shape the frontend expects:
+     *   conceptMastery[]    — ALL LearningMetric rows converted to 0–100 percentage
+     *   knowledgeGaps[]     — subset where masteryScore < 0.5
+     *   recommendedTopics[] — AI Agent response, field names mapped to frontend contract
+     *   nextSteps[]         — one actionable step per top-3 knowledge gap
+     *   analysisBasedOn     — total session count
+     *   generatedAt         — now()
      */
     public RoadmapResponse generateRoadmap(User user) {
         List<LearningMetric> metrics = learningMetricService.getUserMetrics(user.getId());
 
+        // ── Send current metrics to AI Agent ──
         List<AiRoadmapRequest.MetricEntry> metricEntries = metrics.stream()
                 .map(m -> AiRoadmapRequest.MetricEntry.builder()
                         .conceptName(m.getConceptName())
@@ -201,34 +210,125 @@ public class OrchestrationService {
         AiRoadmapResponse aiResponse = aiAgentClient.generateRoadmap(request);
 
         long totalSessions = sessionRepository.countByUserId(user.getId());
-        long completedSessions = sessionRepository.countByUserIdAndStatus(user.getId(), SessionStatus.COMPLETED);
 
-        List<RoadmapResponse.ConceptMetric> conceptMetrics = metrics.stream()
-                .map(m -> RoadmapResponse.ConceptMetric.builder()
-                        .conceptName(m.getConceptName())
-                        .masteryScore(m.getMasteryScore())
-                        .encounterCount(m.getEncounterCount())
+        // ── Build conceptMastery: all concepts as 0–100 percentage ──
+        List<RoadmapResponse.ConceptMastery> conceptMastery = metrics.stream()
+                .map(m -> RoadmapResponse.ConceptMastery.builder()
+                        .category(normalizeConceptName(m.getConceptName()))
+                        .masteryPercentage((int) Math.round(m.getMasteryScore() * 100))
+                        .errorFrequency(m.getEncounterCount())
+                        .lastSeen(m.getLastEncountered())
                         .build())
                 .collect(Collectors.toList());
 
+        // ── knowledgeGaps: concepts below 50% mastery ──
+        List<RoadmapResponse.ConceptMastery> knowledgeGaps = conceptMastery.stream()
+                .filter(c -> c.getMasteryPercentage() < 50)
+                .sorted(java.util.Comparator.comparingInt(RoadmapResponse.ConceptMastery::getMasteryPercentage))
+                .collect(Collectors.toList());
+
+        // ── recommendedTopics: map AI Agent response to full frontend shape ──
         List<RoadmapResponse.RecommendedTopic> recommendedTopics = aiResponse.getRecommendedTopics() != null
                 ? aiResponse.getRecommendedTopics().stream()
-                .map(t -> RoadmapResponse.RecommendedTopic.builder()
-                        .topicName(t.getTopicName())
-                        .description(t.getDescription())
-                        .priority(t.getPriority())
-                        .estimatedTime(t.getEstimatedTime())
-                        .build())
+                .map((t) -> {
+                    List<RoadmapResponse.TopicResource> resources = t.getResources() != null
+                            ? t.getResources().stream()
+                                .map(r -> RoadmapResponse.TopicResource.builder()
+                                        .title(r.getTitle())
+                                        .url(r.getUrl())
+                                        .type("documentation")
+                                        .source(extractHostname(r.getUrl()))
+                                        .build())
+                                .collect(Collectors.toList())
+                            : List.of();
+                    return RoadmapResponse.RecommendedTopic.builder()
+                            .id("topic-" + System.nanoTime())
+                            .title(t.getTopicName())
+                            .description(t.getDescription())
+                            .estimatedMinutes(parseEstimatedMinutes(t.getEstimatedTime()))
+                            .priority(t.getPriority() != null ? t.getPriority().toLowerCase() : "medium")
+                            .category(normalizeConceptName(t.getTopicName()))
+                            .resourceLinks(resources)
+                            .build();
+                })
                 .collect(Collectors.toList())
                 : List.of();
 
+        // ── nextSteps: one actionable step per top knowledge gap (max 3) ──
+        List<RoadmapResponse.NextStep> nextSteps = knowledgeGaps.stream()
+                .limit(3)
+                .map((gap) -> RoadmapResponse.NextStep.builder()
+                        .id("step-" + System.nanoTime())
+                        .action("Improve your " + gap.getCategory() + " skills")
+                        .description("With " + gap.getErrorFrequency() + " recorded errors and "
+                                + gap.getMasteryPercentage() + "% mastery, "
+                                + gap.getCategory() + " is a high-impact area to focus on next.")
+                        .resourceLinks(List.of())
+                        .practiceExercises(List.of(
+                                "Review the concept fundamentals and definitions",
+                                "Write a small program that specifically exercises this concept",
+                                "Find an existing bug in your recent code related to this concept and fix it"
+                        ))
+                        .build())
+                .collect(Collectors.toList());
+
         return RoadmapResponse.builder()
                 .userId(user.getId())
-                .totalSessionsAnalyzed(totalSessions)
-                .completedSessions(completedSessions)
-                .knowledgeGapAnalysis(conceptMetrics)
+                .conceptMastery(conceptMastery)
+                .knowledgeGaps(knowledgeGaps)
                 .recommendedTopics(recommendedTopics)
-                .learningPriorities(aiResponse.getLearningPriorities())
+                .nextSteps(nextSteps)
+                .analysisBasedOn(totalSessions)
+                .generatedAt(java.time.Instant.now())
                 .build();
+    }
+
+    // ── Private helpers for roadmap building ──────────────────────────────────
+
+    /**
+     * Parse an estimated time string like "25 minutes", "1 hour", "30m" → integer minutes.
+     * Falls back to 30 if parsing fails.
+     */
+    private int parseEstimatedMinutes(String estimatedTime) {
+        if (estimatedTime == null || estimatedTime.isBlank()) return 30;
+        try {
+            String lower = estimatedTime.toLowerCase().trim();
+            if (lower.contains("hour")) {
+                int hours = Integer.parseInt(lower.replaceAll("[^0-9]", "").trim());
+                return hours * 60;
+            }
+            String digits = lower.replaceAll("[^0-9]", "").trim();
+            return digits.isEmpty() ? 30 : Integer.parseInt(digits);
+        } catch (NumberFormatException e) {
+            return 30;
+        }
+    }
+
+    /**
+     * Normalize a concept name to a known ConceptCategory value used in the frontend.
+     * Maps common AI Agent concept names like "error-handling" → "Error Handling".
+     */
+    private String normalizeConceptName(String name) {
+        if (name == null) return "Variables";
+        return switch (name.toLowerCase().replace("-", " ").replace("_", " ").trim()) {
+            case "error handling", "exception handling", "exceptions" -> "Error Handling";
+            case "async", "asyncio", "async await", "asynchronous" -> "Async";
+            case "oop", "object oriented", "classes", "inheritance" -> "OOP";
+            case "data structures", "lists", "dicts", "dictionaries" -> "Data Structures";
+            case "algorithms", "sorting", "searching" -> "Algorithms";
+            case "functions", "closures", "decorators" -> "Functions";
+            case "control flow", "loops", "conditionals" -> "Control Flow";
+            case "variables", "scope", "types" -> "Variables";
+            default -> name; // pass through if already normalized
+        };
+    }
+
+    private String extractHostname(String url) {
+        if (url == null) return "";
+        try {
+            return new java.net.URI(url).getHost().replace("www.", "");
+        } catch (Exception e) {
+            return url;
+        }
     }
 }

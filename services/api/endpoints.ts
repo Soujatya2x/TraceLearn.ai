@@ -1,7 +1,3 @@
-// ============================================================
-// TraceLearn.ai — Immutable API Endpoint Definitions
-// Base Path: /api/v1/ (DO NOT CHANGE)
-// ============================================================
 
 export const API_ENDPOINTS = {
   // ── Analysis ─────────────────────────────────────────────
@@ -9,6 +5,9 @@ export const API_ENDPOINTS = {
 
   // ── Session ──────────────────────────────────────────────
   SESSION: (sessionId: string) => `/session/${sessionId}`,
+  SESSION_STATUS: (sessionId: string) => `/session/${sessionId}/status`,
+  SESSION_ANALYSIS: (sessionId: string) => `/session/${sessionId}/analysis`,
+  SESSION_ATTEMPTS: (sessionId: string) => `/session/${sessionId}/attempts`,
 
   // ── Retry ────────────────────────────────────────────────
   RETRY: (sessionId: string) => `/session/${sessionId}/retry`,

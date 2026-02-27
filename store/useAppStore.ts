@@ -7,6 +7,8 @@ export type Theme = 'light' | 'dark'
 interface AppState {
   currentSessionId: string | null
   currentSession: Session | null
+  /** Authenticated user's UUID — set on login, cleared on logout. Used by roadmap hook. */
+  userId: string | null
   analysisStatus: AnalysisStatus
   code: string
   language: Language
@@ -17,6 +19,7 @@ interface AppState {
   theme: Theme
   setCurrentSessionId: (id: string | null) => void
   setCurrentSession: (session: Session | null) => void
+  setUserId: (id: string | null) => void
   setAnalysisStatus: (status: AnalysisStatus) => void
   setCode: (code: string) => void
   setLanguage: (language: Language) => void
@@ -44,6 +47,7 @@ export const useAppStore = create<AppState>()(
       (set, get) => ({
         currentSessionId: null,
         currentSession: null,
+        userId: null,
         analysisStatus: 'idle',
         code: INITIAL_CODE,
         language: 'python',
@@ -54,6 +58,7 @@ export const useAppStore = create<AppState>()(
         theme: 'dark',
         setCurrentSessionId: (id) => set({ currentSessionId: id }),
         setCurrentSession: (session) => set({ currentSession: session }),
+        setUserId: (id) => set({ userId: id }),
         setAnalysisStatus: (status) => set({ analysisStatus: status }),
         setCode: (code) => set({ code }),
         setLanguage: (language) => set({ language }),
@@ -68,6 +73,7 @@ export const useAppStore = create<AppState>()(
           set({
             currentSessionId: null,
             currentSession: null,
+            userId: null,
             analysisStatus: 'idle',
             code: INITIAL_CODE,
             logFile: null,
