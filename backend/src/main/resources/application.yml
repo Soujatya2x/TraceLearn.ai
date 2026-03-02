@@ -9,16 +9,17 @@ spring:
 
   # ── Database (AWS RDS PostgreSQL) ──
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:tracelearn}
-    username: ${DB_USERNAME:tracelearn}
-    password: ${DB_PASSWORD:changeme}
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 20
-      minimum-idle: 5
       idle-timeout: 300000
       connection-timeout: 20000
-      max-lifetime: 1200000
+      max-lifetime: 180000
+      keepalive-time: 30000
+      maximum-pool-size: 5
+      minimum-idle: 1
       pool-name: TraceLearnPool
 
   jpa:
@@ -86,7 +87,7 @@ app:
     refresh-expiration-ms: 604800000 # 7 days
 
   workspace:
-    root-path: ${WORKSPACE_ROOT:/tmp/tracelearn/workspaces}
+    root-path: ${WORKSPACE_ROOT}   # :/tmp/tracelearn/workspaces
     cleanup-cron: "0 0 */6 * * *"   # Every 6 hours
     max-age-hours: 24
 
