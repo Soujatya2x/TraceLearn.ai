@@ -25,21 +25,21 @@ import java.util.stream.Collectors;
  *   sandboxExecutor  (core=3,  max=10) — SandboxGateway  — Docker exec calls
  *   analysisExecutor (core=5,  max=20) — AnalysisGateway — LLM inference calls
  *
- * Sandbox and AI calls are dispatched to their dedicated pools via
- * SandboxGateway and AnalysisGateway respectively. Both return
- * CompletableFuture so this class can .get() and handle exceptions.
+ * TWO EXECUTION MODES:
  *
- * WHY THREE POOLS:
- *   Sandbox calls block for 10–30s waiting for Docker containers.
- *   LLM calls block for 5–30s waiting for AI inference.
- *   Without isolation, 10 concurrent sandbox calls could starve the AI pool
- *   and vice versa — degrading the whole system under load.
+ *   LIVE_EXECUTION:
+ *     runAnalysisPipeline() — unchanged from v1.
+ *     code → Sandbox → stdout/stderr → AI Agent → analysis + artifacts
+ *
+ *   LOG_ANALYSIS:
+ *     runLogAnalysisPipeline() — NEW.
+ *     Sandbox is SKIPPED entirely.
+ *     code + log file → AI Agent directly with framework-aware prompts.
+ *     Used for Spring Boot, FastAPI, and other framework-based projects.
  *
  * SELF-CALL PROXY BYPASS:
- *   All @Async methods live in separate beans (this class, SandboxGateway,
- *   AnalysisGateway). OrchestrationService calls this bean externally,
- *   and this bean calls the gateways externally — Spring AOP proxy always
- *   intercepts correctly.
+ *   All @Async methods live in separate beans. OrchestrationService calls
+ *   this bean externally — Spring AOP proxy always intercepts correctly.
  */
 @Slf4j
 @Service
@@ -58,8 +58,13 @@ public class AsyncPipelineExecutor {
     private final AnalysisGateway analysisGateway;     // analysisExecutor pool
     private final ObjectMapper objectMapper;
 
-    // ─── 1. Initial Analysis Pipeline ───────────────────────────────────────
+    // ─── 1. Initial Analysis Pipeline (LIVE_EXECUTION) ───────────────────────
 
+    /**
+     * Original pipeline — unchanged from v1.
+     * Runs for standalone scripts and simple programs.
+     * Route: code → Sandbox → AI Agent → analysis → artifacts
+     */
     @Async("taskExecutor")
     public void runAnalysisPipeline(Session session, AnalyzeRequest request) {
         UUID sessionId = session.getId();
@@ -89,9 +94,9 @@ public class AsyncPipelineExecutor {
             }
 
             // ── Infrastructure failure guard ──
-            // ERROR = sandbox itself crashed (network, container, timeout) — no
-            // stdout/stderr for AI to reason about. FAILED = user code exited non-zero —
-            // AI gets real output to analyze. Only abort on ERROR.
+            // ERROR = sandbox itself crashed — no stdout/stderr for AI to reason about.
+            // FAILED = user code exited non-zero — AI gets real output to analyze.
+            // Only abort on ERROR.
             if (attempt.getStatus() == ExecutionStatus.ERROR) {
                 log.warn("Sandbox infrastructure error for session {} — aborting AI analysis", sessionId);
                 sessionService.updateSessionStatus(sessionId, SessionStatus.ERROR);
@@ -102,19 +107,50 @@ public class AsyncPipelineExecutor {
             }
 
             // ── Step 2: Analyze via AI Agent (analysisExecutor pool) ──
+            runAiAnalysis(session, request, attempt, 1);
+
+        } catch (Exception e) {
+            log.error("Analysis pipeline failed for session {}", sessionId, e);
+            sessionService.updateSessionStatus(sessionId, SessionStatus.ERROR);
+            notificationService.notifySessionUpdate(sessionId, "ERROR",
+                    java.util.Map.of("reason", "Pipeline error: " + e.getMessage()));
+        }
+    }
+
+    // ─── 2. Log Analysis Pipeline (LOG_ANALYSIS) — NEW ───────────────────────
+
+    /**
+     * Framework-aware pipeline. Sandbox is skipped entirely.
+     * The developer's log file is sent directly to the AI Agent.
+     * AI uses framework-specific prompts (Spring Boot / FastAPI / etc.)
+     *
+     * Route: code + logs → AI Agent → framework-aware analysis → artifacts
+     * No Docker execution. No ExecutionAttempt row created.
+     */
+    @Async("taskExecutor")
+    public void runLogAnalysisPipeline(Session session, AnalyzeRequest request) {
+        UUID sessionId = session.getId();
+
+        try {
+            log.info("Starting LOG_ANALYSIS pipeline for session {} [framework={}]",
+                    sessionId, session.getFrameworkHint());
+
+            // ── Jump straight to AI analysis (no sandbox step) ──
             sessionService.updateSessionStatus(sessionId, SessionStatus.ANALYZING);
-            notificationService.notifySessionUpdate(sessionId, "ANALYZING", null);
+            notificationService.notifySessionUpdate(sessionId, "ANALYZING",
+                    java.util.Map.of(
+                            "mode", "LOG_ANALYSIS",
+                            "framework", session.getFrameworkHint() != null ? session.getFrameworkHint() : "unknown"
+                    ));
+
+            AiAnalyzeRequest analyzeReq = buildLogAnalysisRequest(session, request);
 
             try {
-                AiAnalyzeRequest analyzeReq = buildAnalyzeRequest(session, attempt, request);
                 AiAnalyzeResponse aiResponse = analysisGateway.analyzeCode(analyzeReq).get();
 
                 AiAnalysis analysis = analysisService.saveAnalysis(session, aiResponse);
 
-                // ── Update learning metrics ──────────────────────────────────
-                // Prefer per-concept scores from the Learning Analyst Agent (conceptScores).
-                // Fall back to uniform confidenceScore applied across all concepts
-                // only when conceptScores is absent — less accurate but always progresses.
+                // ── Update learning metrics (same as LIVE_EXECUTION path) ──
                 if (aiResponse.getConceptScores() != null && !aiResponse.getConceptScores().isEmpty()) {
                     learningMetricService.updateMetricsFromScores(
                             session.getUser(),
@@ -130,25 +166,25 @@ public class AsyncPipelineExecutor {
                 notificationService.notifyAnalysisComplete(sessionId,
                         sessionMapper.toAnalysisResponse(analysis));
 
-                // ── Step 3: Trigger artifact generation ──
+                // ── Trigger artifact generation (same as LIVE_EXECUTION path) ──
                 triggerArtifactGeneration(session);
 
             } catch (ExecutionException e) {
-                log.error("AI analysis failed for session {}", sessionId, e);
+                log.error("AI analysis failed for session {} (LOG_ANALYSIS)", sessionId, e);
                 sessionService.updateSessionStatus(sessionId, SessionStatus.ERROR);
                 notificationService.notifySessionUpdate(sessionId, "ERROR",
                         java.util.Map.of("reason", "AI analysis failed: " + unwrap(e).getMessage()));
             }
 
         } catch (Exception e) {
-            log.error("Analysis pipeline failed for session {}", sessionId, e);
+            log.error("Log analysis pipeline failed for session {}", sessionId, e);
             sessionService.updateSessionStatus(sessionId, SessionStatus.ERROR);
             notificationService.notifySessionUpdate(sessionId, "ERROR",
                     java.util.Map.of("reason", "Pipeline error: " + e.getMessage()));
         }
     }
 
-    // ─── 2. Retry Pipeline ───────────────────────────────────────────────────
+    // ─── 3. Retry Pipeline ───────────────────────────────────────────────────
 
     @Async("taskExecutor")
     public void runRetryPipeline(Session session, String fixedCode,
@@ -175,7 +211,6 @@ public class AsyncPipelineExecutor {
                 log.error("Sandbox execution failed during retry for session {}", sessionId, e);
             }
 
-            // ── Infrastructure failure guard ──
             if (attempt.getStatus() == ExecutionStatus.ERROR) {
                 log.warn("Sandbox infrastructure error during retry for session {} attempt {}",
                         sessionId, attemptNumber);
@@ -221,6 +256,7 @@ public class AsyncPipelineExecutor {
                     .originalLogs(session.getOriginalLogs())
                     .attemptNumber(attemptNumber)
                     .previousAttempts(previousAttempts)
+                    .executionMode(ExecutionMode.LIVE_EXECUTION.name())
                     .build();
 
             AiAnalyzeResponse aiResponse = analysisGateway.analyzeCode(analyzeReq).get();
@@ -239,7 +275,7 @@ public class AsyncPipelineExecutor {
         }
     }
 
-    // ─── 3. Chat Pipeline ────────────────────────────────────────────────────
+    // ─── 4. Chat Pipeline ────────────────────────────────────────────────────
 
     @Async("taskExecutor")
     public void runChatPipeline(Session session, String userMessage) {
@@ -265,7 +301,6 @@ public class AsyncPipelineExecutor {
                             .collect(Collectors.toList()))
                     .build();
 
-            // AI chat inference on analysisExecutor pool
             AiChatResponse aiResponse = analysisGateway.chat(chatReq).get();
             ChatMessage assistantMsg = chatService.saveAssistantMessage(session, aiResponse.getReply());
             notificationService.notifyChatReply(sessionId, assistantMsg);
@@ -277,7 +312,7 @@ public class AsyncPipelineExecutor {
         }
     }
 
-    // ─── 4. Artifact Generation ──────────────────────────────────────────────
+    // ─── 5. Artifact Generation ──────────────────────────────────────────────
 
     @Async("taskExecutor")
     public void triggerArtifactGeneration(Session session) {
@@ -305,7 +340,6 @@ public class AsyncPipelineExecutor {
                     .learningResources(deserializeLearningResources(analysis.getLearningResources(), sessionId))
                     .build();
 
-            // Artifact generation on analysisExecutor pool
             AiArtifactsResponse response = analysisGateway.generateArtifacts(request).get();
             artifactService.saveArtifacts(session, response);
 
@@ -321,7 +355,53 @@ public class AsyncPipelineExecutor {
 
     // ─── Private Helpers ─────────────────────────────────────────────────────
 
-    private AiAnalyzeRequest buildAnalyzeRequest(Session session, ExecutionAttempt attempt,
+    /**
+     * Shared AI analysis step used by runAnalysisPipeline().
+     * Extracted to avoid duplication — both initial and retry eventually call AI.
+     */
+    private void runAiAnalysis(Session session, AnalyzeRequest request,
+                                ExecutionAttempt attempt, int attemptNumber) throws Exception {
+        UUID sessionId = session.getId();
+
+        sessionService.updateSessionStatus(sessionId, SessionStatus.ANALYZING);
+        notificationService.notifySessionUpdate(sessionId, "ANALYZING", null);
+
+        try {
+            AiAnalyzeRequest analyzeReq = buildLiveExecutionRequest(session, attempt, request);
+            AiAnalyzeResponse aiResponse = analysisGateway.analyzeCode(analyzeReq).get();
+
+            AiAnalysis analysis = analysisService.saveAnalysis(session, aiResponse);
+
+            if (aiResponse.getConceptScores() != null && !aiResponse.getConceptScores().isEmpty()) {
+                learningMetricService.updateMetricsFromScores(
+                        session.getUser(),
+                        aiResponse.getConceptScores());
+            } else if (aiResponse.getConcepts() != null && !aiResponse.getConcepts().isEmpty()) {
+                learningMetricService.updateMetrics(
+                        session.getUser(),
+                        aiResponse.getConcepts(),
+                        aiResponse.getConfidenceScore() != null ? aiResponse.getConfidenceScore() : 0.5);
+            }
+
+            sessionService.updateSessionStatus(sessionId, SessionStatus.ANALYZED);
+            notificationService.notifyAnalysisComplete(sessionId,
+                    sessionMapper.toAnalysisResponse(analysis));
+
+            triggerArtifactGeneration(session);
+
+        } catch (ExecutionException e) {
+            log.error("AI analysis failed for session {}", sessionId, e);
+            sessionService.updateSessionStatus(sessionId, SessionStatus.ERROR);
+            notificationService.notifySessionUpdate(sessionId, "ERROR",
+                    java.util.Map.of("reason", "AI analysis failed: " + unwrap(e).getMessage()));
+        }
+    }
+
+    /**
+     * Build AiAnalyzeRequest for LIVE_EXECUTION sessions.
+     * Includes sandbox output (stdout/stderr) — no log file content.
+     */
+    private AiAnalyzeRequest buildLiveExecutionRequest(Session session, ExecutionAttempt attempt,
             AnalyzeRequest original) {
         return AiAnalyzeRequest.builder()
                 .sessionId(session.getId().toString())
@@ -333,6 +413,28 @@ public class AsyncPipelineExecutor {
                 .originalCode(original.getCode())
                 .originalLogs(original.getLogs())
                 .attemptNumber(attempt != null ? attempt.getAttemptNumber() : 1)
+                .executionMode(ExecutionMode.LIVE_EXECUTION.name())
+                .build();
+    }
+
+    /**
+     * Build AiAnalyzeRequest for LOG_ANALYSIS sessions.
+     * Includes the developer's log file as logContent.
+     * No stdout/stderr — sandbox was not run.
+     * Includes frameworkType so AI Agent uses the correct prompt.
+     */
+    private AiAnalyzeRequest buildLogAnalysisRequest(Session session, AnalyzeRequest request) {
+        return AiAnalyzeRequest.builder()
+                .sessionId(session.getId().toString())
+                .code(request.getCode())
+                .language(request.getLanguage())
+                .originalCode(request.getCode())
+                .logContent(request.getLogs())     // developer's log file → AI reads directly
+                .originalLogs(request.getLogs())
+                .attemptNumber(1)
+                .executionMode(ExecutionMode.LOG_ANALYSIS.name())
+                .frameworkType(session.getFrameworkHint())
+                // stdout/stderr/exitCode intentionally null — no sandbox was run
                 .build();
     }
 

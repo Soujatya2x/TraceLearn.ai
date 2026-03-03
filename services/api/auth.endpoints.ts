@@ -1,11 +1,7 @@
-// ============================================================
-// TraceLearn.ai — Auth Endpoint Definitions
-// ============================================================
 
 export const AUTH_ENDPOINTS = {
-  // Email / password
-  SIGN_IN:  '/auth/sign-in',
-  SIGN_UP:  '/auth/sign-up',
+  SIGN_IN:  '/auth/sign-in',  
+  SIGN_UP:  '/auth/sign-up',   
   SIGN_OUT: '/auth/sign-out',
 
   // Token lifecycle

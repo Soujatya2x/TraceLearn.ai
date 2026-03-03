@@ -1,12 +1,22 @@
 import { Skeleton } from '@/components/ui/SkeletonCard'
+import { PreviewBadgeInline } from '@/components/ui/PreviewBadge'
 
-export function RoadmapSkeletonLoader() {
+interface RoadmapSkeletonLoaderProps {
+  /** When true, shows the Preview badge beside the title skeleton */
+  isPreview?: boolean
+}
+
+export function RoadmapSkeletonLoader({ isPreview = false }: RoadmapSkeletonLoaderProps) {
   return (
     <div className="space-y-8" aria-busy="true" aria-label="Loading roadmap">
+      {/* Header row — badge sits inline beside the title skeleton */}
       <div className="flex items-center gap-3">
         <Skeleton className="w-10 h-10 rounded-xl" />
         <div className="space-y-2">
-          <Skeleton className="h-5 w-44" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-5 w-44" />
+            <PreviewBadgeInline visible={isPreview} />
+          </div>
           <Skeleton className="h-3 w-64" />
         </div>
       </div>

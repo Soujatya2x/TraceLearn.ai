@@ -23,9 +23,22 @@ public class SessionService {
     private final SessionRepository sessionRepository;
     private final SessionMapper sessionMapper;
 
+    /**
+     * Create a new session.
+     *
+     * executionMode and frameworkHint are set by ExecutionModeDetector in
+     * OrchestrationService before this is called. They are persisted here
+     * so the async pipeline can read them without re-running detection.
+     *
+     * @param executionMode  LIVE_EXECUTION or LOG_ANALYSIS (never null)
+     * @param frameworkHint  "springboot" / "fastapi" / null for LIVE_EXECUTION
+     */
     @Transactional
     public Session createSession(User user, String language, String workspacePath,
-                                  String originalCode, String originalLogs, String originalFilename) {
+                                  String originalCode, String originalLogs,
+                                  String originalFilename,
+                                  ExecutionMode executionMode,
+                                  String frameworkHint) {
         Session session = Session.builder()
                 .user(user)
                 .language(language.toLowerCase())
@@ -35,17 +48,20 @@ public class SessionService {
                 .originalCode(originalCode)
                 .originalLogs(originalLogs)
                 .originalFilename(originalFilename)
+                .executionMode(executionMode)
+                .frameworkHint(frameworkHint)
                 .build();
 
         session = sessionRepository.save(session);
-        log.info("Session created: {} for user: {}", session.getId(), user.getId());
+        log.info("Session created: {} for user: {} [mode={}, framework={}]",
+                session.getId(), user.getId(), executionMode, frameworkHint);
         return session;
     }
 
     /**
      * Load a single session with executionAttempts and aiAnalysis eagerly fetched.
      * Uses JOIN FETCH — one query instead of 1 + N lazy loads.
-     * Use this wherever toDetailResponse() / toDetailResponse() will be called.
+     * Use this wherever toDetailResponse() will be called.
      */
     @Transactional(readOnly = true)
     public Session getSessionEntity(UUID sessionId) {
@@ -66,7 +82,6 @@ public class SessionService {
 
     @Transactional(readOnly = true)
     public SessionDetailResponse getSessionDetailResponse(UUID sessionId) {
-        // findByIdWithDetails JOIN FETCHes attempts + analysis — no N+1
         Session session = getSessionEntity(sessionId);
         return sessionMapper.toDetailResponse(session);
     }
@@ -74,10 +89,6 @@ public class SessionService {
     /**
      * Paginated list — maps to SessionStatusResponse (scalar columns only).
      * findSummariesByUserId loads ONLY Session rows — no collection joins.
-     * toStatusResponse maps NO lazy associations — zero extra queries.
-     *
-     * Before fix: 20 sessions × (1 attempts query + 1 analysis query) = 41 queries/page
-     * After fix:  1 query total regardless of page size
      */
     @Transactional(readOnly = true)
     public Page<SessionStatusResponse> getUserSessions(UUID userId, Pageable pageable) {

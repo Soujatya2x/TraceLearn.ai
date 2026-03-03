@@ -22,13 +22,26 @@ import java.util.stream.Collectors;
  *
  * Single authority that coordinates the full learning workflow:
  *   1. Receive code + logs from Frontend
- *   2. Create workspace and session
- *   3. Delegate long-running work to AsyncPipelineExecutor (off HTTP thread)
- *   4. Return immediately — frontend polls GET /session/{id} or listens on WebSocket
+ *   2. Detect execution mode (LIVE_EXECUTION vs LOG_ANALYSIS)
+ *   3. Create workspace and session
+ *   4. Route to correct async pipeline
+ *   5. Return immediately — frontend polls GET /session/{id} or listens on WebSocket
  *
- * IMPORTANT: All sandbox and AI calls run via AsyncPipelineExecutor.
- * @Async methods are kept in a SEPARATE bean to prevent Spring's self-call
- * proxy bypass, which would silently make @Async run synchronously.
+ * EXECUTION MODE ROUTING (new):
+ *
+ *   LIVE_EXECUTION → asyncPipeline.runAnalysisPipeline()
+ *     Unchanged from v1. Runs code in Docker sandbox, then AI analyzes output.
+ *     Used for: Python scripts, single Java class, Node.js scripts, Go, Rust.
+ *
+ *   LOG_ANALYSIS → asyncPipeline.runLogAnalysisPipeline()
+ *     New in v2. Sandbox skipped. AI reads logs directly with framework-specific prompts.
+ *     Used for: Spring Boot, FastAPI (extensible to Django, Express, NestJS, React).
+ *
+ * Detection order (ExecutionModeDetector):
+ *   1. Explicit frameworkType from user → LOG_ANALYSIS (always trusted)
+ *   2. Log content contains framework signatures → LOG_ANALYSIS (auto-detect)
+ *   3. Filename is a build file (pom.xml etc.) → LOG_ANALYSIS (auto-detect)
+ *   4. Default → LIVE_EXECUTION
  */
 @Slf4j
 @Service
@@ -47,36 +60,60 @@ public class OrchestrationService {
     private final SessionMapper sessionMapper;
     private final SessionRepository sessionRepository;
     private final AppProperties appProperties;
-    private final AsyncPipelineExecutor asyncPipeline; // ← owns all @Async methods
+    private final AsyncPipelineExecutor asyncPipeline;
+    private final ExecutionModeDetector executionModeDetector; // NEW
 
     // ─── 1. ANALYZE ─────────────────────────────────────────────────────────
 
     /**
      * Entry point for the analysis workflow.
      *
-     * Synchronous work (validates, creates workspace + session), then
-     * hands off to AsyncPipelineExecutor and returns the session immediately.
-     * The HTTP request completes in milliseconds regardless of AI/sandbox latency.
+     * Synchronous work (validates, detects mode, creates workspace + session),
+     * then hands off to the correct AsyncPipelineExecutor method and returns.
+     * HTTP request completes in milliseconds regardless of AI/sandbox latency.
      */
     public SessionDetailResponse analyzeCode(User user, AnalyzeRequest request) {
-        log.info("Starting analysis for user {}: language={}, codeLength={}",
-                user.getId(), request.getLanguage(), request.getCode().length());
+        log.info("Starting analysis for user {}: language={}, codeLength={}, frameworkType={}",
+                user.getId(), request.getLanguage(),
+                request.getCode().length(), request.getFrameworkType());
 
         if (request.getCode().getBytes().length > appProperties.getExecution().getMaxFileSizeBytes()) {
             throw new BadRequestException("Code exceeds maximum allowed size of "
                     + appProperties.getExecution().getMaxFileSizeBytes() + " bytes");
         }
 
+        // ── Detect execution mode ─────────────────────────────────────────────
+        // Run BEFORE workspace/session creation so the result is persisted on the session.
+        ExecutionModeDetector.DetectionResult detection = executionModeDetector.detect(
+                request.getFrameworkType(),
+                request.getFilename(),
+                request.getLogs()
+        );
+
+        log.info("Execution mode detected: mode={}, framework={}, reason={}",
+                detection.mode(), detection.frameworkHint(), detection.reason());
+
+        // ── Create workspace (always — stores code + log file on disk) ────────
         UUID sessionUUID = UUID.randomUUID();
         String workspacePath = workspaceService.createWorkspace(
                 sessionUUID, request.getCode(), request.getLogs(), request.getLanguage());
 
+        // ── Create session with detected mode ─────────────────────────────────
         Session session = sessionService.createSession(
                 user, request.getLanguage(), workspacePath,
-                request.getCode(), request.getLogs(), request.getFilename());
+                request.getCode(), request.getLogs(), request.getFilename(),
+                detection.mode(), detection.frameworkHint()
+        );
 
-        // Delegate to AsyncPipelineExecutor — proxy is invoked correctly, @Async works
-        asyncPipeline.runAnalysisPipeline(session, request);
+        // ── Route to correct pipeline ─────────────────────────────────────────
+        if (detection.mode() == ExecutionMode.LOG_ANALYSIS) {
+            log.info("Routing session {} to LOG_ANALYSIS pipeline [framework={}]",
+                    session.getId(), detection.frameworkHint());
+            asyncPipeline.runLogAnalysisPipeline(session, request);
+        } else {
+            log.info("Routing session {} to LIVE_EXECUTION pipeline", session.getId());
+            asyncPipeline.runAnalysisPipeline(session, request);
+        }
 
         return sessionMapper.toDetailResponse(session);
     }
@@ -86,21 +123,22 @@ public class OrchestrationService {
     /**
      * Retry execution with AI-suggested fixed code.
      *
-     * Pattern mirrors analyzeCode():
-     *   - All validation runs synchronously on the HTTP thread
-     *     (ownership, retry limit, fixed code present) — errors thrown here
-     *     produce correct HTTP 400/409 responses
-     *   - State prep runs synchronously (increment counter, update workspace)
-     *     so status is visible in DB before async starts
-     *   - Sandbox + AI calls handed off to AsyncPipelineExecutor immediately
-     *   - Returns current session state — frontend polls for progress
+     * NOTE: Retry is only meaningful for LIVE_EXECUTION sessions.
+     * LOG_ANALYSIS sessions do not run code, so there is nothing to retry.
+     * Calling retry on a LOG_ANALYSIS session returns 400.
      */
     public SessionDetailResponse retryExecution(UUID sessionId, User user) {
         Session session = sessionService.getSessionEntity(sessionId);
 
-        // ── Validate (sync — throws HTTP errors correctly) ──
         if (!session.getUser().getId().equals(user.getId())) {
             throw new BadRequestException("You do not own this session");
+        }
+
+        // LOG_ANALYSIS sessions have no executable code — retry doesn't apply
+        if (session.getExecutionMode() == ExecutionMode.LOG_ANALYSIS) {
+            throw new BadRequestException(
+                    "Retry is not available for framework log analysis sessions. "
+                    + "Apply the suggested fix in your project and re-upload if the error persists.");
         }
 
         int maxRetries = appProperties.getExecution().getMaxRetryCount();
@@ -118,14 +156,12 @@ public class OrchestrationService {
         String fixedCode = analysis.getFixedCode();
         int attemptNumber = executionService.getNextAttemptNumber(sessionId);
 
-        // ── Prepare state (sync — committed to DB before async starts) ──
         sessionService.incrementRetryCount(sessionId);
         workspaceService.updateWorkspaceCode(sessionId, fixedCode, session.getLanguage(), attemptNumber);
         sessionService.updateSessionStatus(sessionId, SessionStatus.EXECUTING);
         notificationService.notifySessionUpdate(sessionId, "EXECUTING",
                 java.util.Map.of("retryAttempt", attemptNumber));
 
-        // ── Hand off to async pipeline — HTTP thread freed immediately ──
         asyncPipeline.runRetryPipeline(session, fixedCode, attemptNumber, analysis.getFixedCode());
 
         return sessionMapper.toDetailResponse(sessionService.getSessionEntity(sessionId));
@@ -133,10 +169,6 @@ public class OrchestrationService {
 
     // ─── 3. CHAT ────────────────────────────────────────────────────────────
 
-    /**
-     * Process a chat message within a session context.
-     * Chats are isolated per session — context is always scoped to one error session.
-     */
     public ChatMessageResponse processChat(UUID sessionId, User user, String userMessage) {
         Session session = sessionService.getSessionEntity(sessionId);
 
@@ -167,7 +199,8 @@ public class OrchestrationService {
                 .build();
 
         AiChatResponse aiResponse = aiAgentClient.chat(chatReq);
-        ChatMessage assistantMsg = chatService.saveAssistantMessage(session, aiResponse.getReply(), aiResponse.getSuggestedFollowUps());
+        ChatMessage assistantMsg = chatService.saveAssistantMessage(
+                session, aiResponse.getReply(), aiResponse.getSuggestedFollowUps());
 
         return ChatMessageResponse.builder()
                 .id(assistantMsg.getId())
@@ -179,21 +212,9 @@ public class OrchestrationService {
 
     // ─── 4. ROADMAP ─────────────────────────────────────────────────────────
 
-    /**
-     * Generate a personalized learning roadmap based on accumulated session metrics.
-     *
-     * Maps all data into the RoadmapResponse shape the frontend expects:
-     *   conceptMastery[]    — ALL LearningMetric rows converted to 0–100 percentage
-     *   knowledgeGaps[]     — subset where masteryScore < 0.5
-     *   recommendedTopics[] — AI Agent response, field names mapped to frontend contract
-     *   nextSteps[]         — one actionable step per top-3 knowledge gap
-     *   analysisBasedOn     — total session count
-     *   generatedAt         — now()
-     */
     public RoadmapResponse generateRoadmap(User user) {
         List<LearningMetric> metrics = learningMetricService.getUserMetrics(user.getId());
 
-        // ── Send current metrics to AI Agent ──
         List<AiRoadmapRequest.MetricEntry> metricEntries = metrics.stream()
                 .map(m -> AiRoadmapRequest.MetricEntry.builder()
                         .conceptName(m.getConceptName())
@@ -211,7 +232,6 @@ public class OrchestrationService {
 
         long totalSessions = sessionRepository.countByUserId(user.getId());
 
-        // ── Build conceptMastery: all concepts as 0–100 percentage ──
         List<RoadmapResponse.ConceptMastery> conceptMastery = metrics.stream()
                 .map(m -> RoadmapResponse.ConceptMastery.builder()
                         .category(normalizeConceptName(m.getConceptName()))
@@ -221,13 +241,11 @@ public class OrchestrationService {
                         .build())
                 .collect(Collectors.toList());
 
-        // ── knowledgeGaps: concepts below 50% mastery ──
         List<RoadmapResponse.ConceptMastery> knowledgeGaps = conceptMastery.stream()
                 .filter(c -> c.getMasteryPercentage() < 50)
                 .sorted(java.util.Comparator.comparingInt(RoadmapResponse.ConceptMastery::getMasteryPercentage))
                 .collect(Collectors.toList());
 
-        // ── recommendedTopics: map AI Agent response to full frontend shape ──
         List<RoadmapResponse.RecommendedTopic> recommendedTopics = aiResponse.getRecommendedTopics() != null
                 ? aiResponse.getRecommendedTopics().stream()
                 .map((t) -> {
@@ -254,7 +272,6 @@ public class OrchestrationService {
                 .collect(Collectors.toList())
                 : List.of();
 
-        // ── nextSteps: one actionable step per top knowledge gap (max 3) ──
         List<RoadmapResponse.NextStep> nextSteps = knowledgeGaps.stream()
                 .limit(3)
                 .map((gap) -> RoadmapResponse.NextStep.builder()
@@ -283,12 +300,8 @@ public class OrchestrationService {
                 .build();
     }
 
-    // ── Private helpers for roadmap building ──────────────────────────────────
+    // ─── Private helpers ──────────────────────────────────────────────────────
 
-    /**
-     * Parse an estimated time string like "25 minutes", "1 hour", "30m" → integer minutes.
-     * Falls back to 30 if parsing fails.
-     */
     private int parseEstimatedMinutes(String estimatedTime) {
         if (estimatedTime == null || estimatedTime.isBlank()) return 30;
         try {
@@ -304,22 +317,22 @@ public class OrchestrationService {
         }
     }
 
-    /**
-     * Normalize a concept name to a known ConceptCategory value used in the frontend.
-     * Maps common AI Agent concept names like "error-handling" → "Error Handling".
-     */
     private String normalizeConceptName(String name) {
         if (name == null) return "Variables";
         return switch (name.toLowerCase().replace("-", " ").replace("_", " ").trim()) {
             case "error handling", "exception handling", "exceptions" -> "Error Handling";
-            case "async", "asyncio", "async await", "asynchronous" -> "Async";
-            case "oop", "object oriented", "classes", "inheritance" -> "OOP";
-            case "data structures", "lists", "dicts", "dictionaries" -> "Data Structures";
-            case "algorithms", "sorting", "searching" -> "Algorithms";
-            case "functions", "closures", "decorators" -> "Functions";
-            case "control flow", "loops", "conditionals" -> "Control Flow";
-            case "variables", "scope", "types" -> "Variables";
-            default -> name; // pass through if already normalized
+            case "async", "asyncio", "async await", "asynchronous"    -> "Async";
+            case "oop", "object oriented", "classes", "inheritance"   -> "OOP";
+            case "data structures", "lists", "dicts", "dictionaries"  -> "Data Structures";
+            case "algorithms", "sorting", "searching"                 -> "Algorithms";
+            case "functions", "closures", "decorators"               -> "Functions";
+            case "control flow", "loops", "conditionals"             -> "Control Flow";
+            case "variables", "scope", "types"                        -> "Variables";
+            case "dependency injection", "beans", "spring context"    -> "Dependency Injection";
+            case "rest api", "http", "controllers"                    -> "REST API";
+            case "database", "jpa", "orm", "hibernate"               -> "Database";
+            case "async io", "event loop", "coroutines"               -> "Async I/O";
+            default -> name;
         };
     }
 

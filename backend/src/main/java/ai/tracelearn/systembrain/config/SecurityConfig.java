@@ -42,6 +42,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/v1/auth/**",
                                 "/api/v1/health/**",
+                                "/api/v1/detect",          // ← ADDED: detect is stateless, no auth needed
                                 "/actuator/health",
                                 "/actuator/info",
                                 "/error"

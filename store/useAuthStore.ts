@@ -1,7 +1,5 @@
 // ============================================================
 // TraceLearn.ai — Auth Zustand Store
-// Handles user state, loading, and auth actions.
-// Token persistence is handled by tokenStorage in authService.
 // ============================================================
 
 import { create } from 'zustand'
@@ -15,6 +13,7 @@ import {
   refreshAccessToken,
   tokenStorage,
 } from '@/services/api/authService'
+import { useAppStore } from '@/store/useAppStore'
 import type {
   AuthStatus,
   SignInEmailRequest,
@@ -22,14 +21,10 @@ import type {
   User,
 } from '@/types/auth'
 
-// ─── State shape ─────────────────────────────────────────────
-
 interface AuthState {
   user: User | null
   status: AuthStatus
   error: string | null
-
-  // Actions
   initAuth: () => Promise<void>
   signInEmail: (payload: SignInEmailRequest) => Promise<void>
   signUpEmail: (payload: SignUpEmailRequest) => Promise<void>
@@ -37,6 +32,14 @@ interface AuthState {
   signOut: () => Promise<void>
   clearError: () => void
   setUser: (user: User | null) => void
+}
+
+// ─── Helper — sync userId into AppStore ──────────────────────
+// Called after every successful auth event so the roadmap hook
+// always has a userId to query with.
+
+function syncUserId(user: User | null) {
+  useAppStore.getState().setUserId(user?.id ?? null)
 }
 
 // ─── Store ───────────────────────────────────────────────────
@@ -48,11 +51,6 @@ export const useAuthStore = create<AuthState>()(
       status: 'idle',
       error:  null,
 
-      /**
-       * Called once on app mount (in AuthProvider).
-       * If a valid access token exists, fetches the current user.
-       * If the token is expired but a refresh token exists, silently refreshes first.
-       */
       initAuth: async () => {
         set({ status: 'loading' })
 
@@ -61,18 +59,20 @@ export const useAuthStore = create<AuthState>()(
 
         if (!hasAccess && !hasRefresh) {
           set({ status: 'unauthenticated', user: null })
+          syncUserId(null)
           return
         }
 
         try {
-          // Refresh if expired
           if (tokenStorage.isExpired() && hasRefresh) {
             await refreshAccessToken()
           }
           const user = await getCurrentUser()
+          syncUserId(user)
           set({ user, status: 'authenticated' })
         } catch {
           tokenStorage.clear()
+          syncUserId(null)
           set({ user: null, status: 'unauthenticated' })
         }
       },
@@ -81,6 +81,7 @@ export const useAuthStore = create<AuthState>()(
         set({ status: 'loading', error: null })
         try {
           const { user } = await signInWithEmail(payload)
+          syncUserId(user)
           set({ user, status: 'authenticated', error: null })
         } catch (err: unknown) {
           const message = extractErrorMessage(err, 'Invalid email or password.')
@@ -93,6 +94,7 @@ export const useAuthStore = create<AuthState>()(
         set({ status: 'loading', error: null })
         try {
           const { user } = await signUpWithEmail(payload)
+          syncUserId(user)
           set({ user, status: 'authenticated', error: null })
         } catch (err: unknown) {
           const message = extractErrorMessage(err, 'Could not create account. Try again.')
@@ -101,17 +103,12 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      /**
-       * Redirects to the OAuth provider URL obtained from the backend.
-       * After OAuth, the provider redirects to /auth/callback which
-       * calls handleOAuthCallback and then redirects to /.
-       */
       signInWithOAuth: async (provider) => {
         set({ status: 'loading', error: null })
         try {
           const { url } = await getOAuthUrl(provider)
           window.location.href = url
-          // status stays 'loading' while the redirect happens
+          // userId synced in /auth/callback after the OAuth round-trip completes
         } catch (err: unknown) {
           const message = extractErrorMessage(err, `Could not connect to ${provider}.`)
           set({ status: 'unauthenticated', error: message })
@@ -124,18 +121,21 @@ export const useAuthStore = create<AuthState>()(
         try {
           await signOutService()
         } finally {
+          syncUserId(null)
           set({ user: null, status: 'unauthenticated', error: null })
         }
       },
 
       clearError: () => set({ error: null }),
-      setUser:    (user) => set({ user, status: user ? 'authenticated' : 'unauthenticated' }),
+
+      setUser: (user) => {
+        syncUserId(user)
+        set({ user, status: user ? 'authenticated' : 'unauthenticated' })
+      },
     }),
     { name: 'TraceLearnAuthStore' },
   ),
 )
-
-// ─── Helpers ─────────────────────────────────────────────────
 
 function extractErrorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'response' in err) {

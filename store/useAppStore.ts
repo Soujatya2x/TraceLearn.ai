@@ -14,6 +14,8 @@ interface AppState {
   language: Language
   logFile: File | null
   projectFiles: File[]
+  /** Set by WorkspaceRightPanel after POST /api/v1/detect. e.g. "springboot" | "fastapi" | null */
+  detectedFramework: string | null
   isPolling: boolean
   sidebarOpen: boolean
   theme: Theme
@@ -25,6 +27,7 @@ interface AppState {
   setLanguage: (language: Language) => void
   setLogFile: (file: File | null) => void
   setProjectFiles: (files: File[]) => void
+  setDetectedFramework: (framework: string | null) => void
   setIsPolling: (polling: boolean) => void
   setSidebarOpen: (open: boolean) => void
   setTheme: (theme: Theme) => void
@@ -45,40 +48,43 @@ export const useAppStore = create<AppState>()(
   devtools(
     persist(
       (set, get) => ({
-        currentSessionId: null,
-        currentSession: null,
-        userId: null,
-        analysisStatus: 'idle',
-        code: INITIAL_CODE,
-        language: 'python',
-        logFile: null,
-        projectFiles: [],
-        isPolling: false,
-        sidebarOpen: true,
-        theme: 'dark',
-        setCurrentSessionId: (id) => set({ currentSessionId: id }),
-        setCurrentSession: (session) => set({ currentSession: session }),
-        setUserId: (id) => set({ userId: id }),
-        setAnalysisStatus: (status) => set({ analysisStatus: status }),
-        setCode: (code) => set({ code }),
-        setLanguage: (language) => set({ language }),
-        setLogFile: (logFile) => set({ logFile }),
-        setProjectFiles: (projectFiles) => set({ projectFiles }),
-        setIsPolling: (isPolling) => set({ isPolling }),
-        setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
-        setTheme: (theme) => set({ theme }),
+        currentSessionId:  null,
+        currentSession:    null,
+        userId:            null,
+        analysisStatus:    'idle',
+        code:              INITIAL_CODE,
+        language:          'python',
+        logFile:           null,
+        projectFiles:      [],
+        detectedFramework: null,
+        isPolling:         false,
+        sidebarOpen:       true,
+        theme:             'dark',
+        setCurrentSessionId:  (id)        => set({ currentSessionId: id }),
+        setCurrentSession:    (session)   => set({ currentSession: session }),
+        setUserId:            (id)        => set({ userId: id }),
+        setAnalysisStatus:    (status)    => set({ analysisStatus: status }),
+        setCode:              (code)      => set({ code }),
+        setLanguage:          (language)  => set({ language }),
+        setLogFile:           (logFile)   => set({ logFile }),
+        setProjectFiles:      (files)     => set({ projectFiles: files }),
+        setDetectedFramework: (framework) => set({ detectedFramework: framework }),
+        setIsPolling:         (isPolling) => set({ isPolling }),
+        setSidebarOpen:       (open)      => set({ sidebarOpen: open }),
+        setTheme:             (theme)     => set({ theme }),
         toggleTheme: () =>
           set({ theme: get().theme === 'light' ? 'dark' : 'light' }),
         resetWorkspace: () =>
           set({
-            currentSessionId: null,
-            currentSession: null,
-            userId: null,
-            analysisStatus: 'idle',
-            code: INITIAL_CODE,
-            logFile: null,
-            projectFiles: [],
-            isPolling: false,
+            currentSessionId:  null,
+            currentSession:    null,
+            userId:            null,
+            analysisStatus:    'idle',
+            code:              INITIAL_CODE,
+            logFile:           null,
+            projectFiles:      [],
+            detectedFramework: null,
+            isPolling:         false,
           }),
       }),
       {

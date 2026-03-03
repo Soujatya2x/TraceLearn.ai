@@ -1,6 +1,7 @@
 package ai.tracelearn.systembrain.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,4 +22,10 @@ public class AnalyzeRequest {
     private String language;
 
     private String filename;
+
+    @Pattern(
+        regexp = "^(springboot|fastapi|django|express|nestjs|react)?$",
+        message = "frameworkType must be one of: springboot, fastapi, django, express, nestjs, react"
+    )
+    private String frameworkType;
 }

@@ -7,14 +7,19 @@ import { ErrorTopSection } from '@/features/explanation/ErrorTopSection'
 import { AIExplanationSection } from '@/features/explanation/AIExplanationSection'
 import { LearningResourcesSection } from '@/features/explanation/LearningResourcesSection'
 import { SkeletonCard, SkeletonText } from '@/components/ui/SkeletonCard'
+import { PreviewBadgeInline } from '@/components/ui/PreviewBadge'
 import { useErrorExplanation } from '@/hooks/useAnalysis'
+import { useFallback } from '@/hooks/useFallback'
 import { useAppStore } from '@/store/useAppStore'
 import { staggerContainer } from '@/animations/variants'
 import { Zap, AlertTriangle, Brain, BookMarked } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ErrorExplanation } from '@/types'
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
+// ─── Mock data — shown when backend hasn't returned yet ──────────────────────
+// This is intentional demo data for the hackathon prototype.
+// When the AI agent's /ai/analyze endpoint is live and the backend
+// populates session analysis, real data will replace this automatically.
 
 const MOCK_EXPLANATION: ErrorExplanation = {
   sessionId: 'demo-session-001',
@@ -47,21 +52,21 @@ const MOCK_EXPLANATION: ErrorExplanation = {
   ],
   learningResources: [
     { title: 'Python Exceptions — Official Docs', url: 'https://docs.python.org/3/tutorial/errors.html', type: 'documentation', source: 'Python Docs' },
-    { title: 'Understanding ZeroDivisionError',   url: 'https://realpython.com/python-exceptions/',     type: 'article',        source: 'Real Python' },
-    { title: 'Guard Clauses — Clean Code',        url: 'https://refactoring.guru/replace-nested-conditional-with-guard-clauses', type: 'tutorial', source: 'Refactoring.guru' },
+    { title: 'Understanding ZeroDivisionError', url: 'https://realpython.com/python-exceptions/', type: 'article', source: 'Real Python' },
+    { title: 'Guard Clauses — Clean Code', url: 'https://refactoring.guru/replace-nested-conditional-with-guard-clauses', type: 'tutorial', source: 'Refactoring.guru' },
   ],
   similarErrorsHistory: [
     { sessionId: 'prev-001', errorType: 'ZeroDivisionError', date: '3 days ago', resolved: true },
-    { sessionId: 'prev-002', errorType: 'TypeError',         date: 'Last week',  resolved: true },
+    { sessionId: 'prev-002', errorType: 'TypeError', date: 'Last week', resolved: true },
   ],
 }
 
-// ─── Section nav pill ─────────────────────────────────────────────────────────
+// ─── Section nav ──────────────────────────────────────────────────────────────
 
 const SECTIONS = [
-  { id: 'error',     label: 'Error',       icon: AlertTriangle },
-  { id: 'analysis',  label: 'Analysis',    icon: Brain         },
-  { id: 'resources', label: 'Resources',   icon: BookMarked    },
+  { id: 'error',     label: 'Error',     icon: AlertTriangle },
+  { id: 'analysis',  label: 'Analysis',  icon: Brain         },
+  { id: 'resources', label: 'Resources', icon: BookMarked    },
 ] as const
 
 function SectionNav({ activeSection }: { activeSection: string }) {
@@ -75,9 +80,9 @@ function SectionNav({ activeSection }: { activeSection: string }) {
       aria-label="Page sections"
     >
       {SECTIONS.map((s, i) => {
-        const Icon    = s.icon
-        const active  = activeSection === s.id
-        const passed  = SECTIONS.findIndex((x) => x.id === activeSection) > i
+        const Icon   = s.icon
+        const active = activeSection === s.id
+        const passed = SECTIONS.findIndex((x) => x.id === activeSection) > i
         return (
           <div key={s.id} className="flex items-center gap-1">
             <a
@@ -102,12 +107,9 @@ function SectionNav({ activeSection }: { activeSection: string }) {
   )
 }
 
-// ─── Scroll progress bar ──────────────────────────────────────────────────────
-
 function ScrollProgress({ containerRef }: { containerRef: React.RefObject<HTMLDivElement | null> }) {
   const { scrollYProgress } = useScroll({ container: containerRef as React.RefObject<HTMLElement> })
   const scaleX = useTransform(scrollYProgress, [0, 1], [0, 1])
-
   return (
     <motion.div
       className="fixed top-0 left-0 right-0 h-0.5 bg-primary origin-left z-50 pointer-events-none"
@@ -115,8 +117,6 @@ function ScrollProgress({ containerRef }: { containerRef: React.RefObject<HTMLDi
     />
   )
 }
-
-// ─── Divider ─────────────────────────────────────────────────────────────────
 
 function SectionDivider() {
   return (
@@ -137,10 +137,14 @@ function SectionDivider() {
 
 export default function ExplanationPage() {
   const { currentSessionId } = useAppStore()
-  const { data: explanation, isLoading } = useErrorExplanation(currentSessionId)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const displayData = explanation ?? MOCK_EXPLANATION
+  // ── Real data from backend ─────────────────────────────────────────────────
+  // Backend: GET /api/v1/session/{id}/analysis
+  // Maps BackendAnalysis → ErrorExplanation via mapAnalysisToErrorExplanation()
+  // If this query fails or returns null, useFallback shows MOCK_EXPLANATION.
+  const explanationQuery = useErrorExplanation(currentSessionId)
+  const { data: displayData, isPreview, isLoading } = useFallback(explanationQuery, MOCK_EXPLANATION)
 
   return (
     <AppShell activeNav="explanation">
@@ -155,29 +159,25 @@ export default function ExplanationPage() {
           transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
           className="mb-6"
         >
-          <h1 className="text-xl font-semibold text-foreground tracking-tight">
-            Error Explanation
-          </h1>
+          <div className="flex items-center">
+            <h1 className="text-xl font-semibold text-foreground tracking-tight">
+              Error Explanation
+            </h1>
+            {/* Badge appears only when showing mock/demo data */}
+            <PreviewBadgeInline visible={isPreview} />
+          </div>
           <p className="text-sm text-muted-foreground mt-1">
             AI-powered analysis of what went wrong and how to fix it
           </p>
         </motion.div>
 
-        {/* ── Section nav ──────────────────────────────────── */}
         {!isLoading && <SectionNav activeSection="error" />}
 
-        {/* ── Content ──────────────────────────────────────── */}
         {isLoading ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="space-y-6"
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <SkeletonCard />
             <SkeletonCard />
-            <div className="space-y-2">
-              <SkeletonText lines={4} />
-            </div>
+            <div className="space-y-2"><SkeletonText lines={4} /></div>
             <SkeletonCard />
           </motion.div>
         ) : (
@@ -187,13 +187,13 @@ export default function ExplanationPage() {
             animate="animate"
             className="space-y-8"
           >
-            <section id="error"     aria-label="Error details">
+            <section id="error" aria-label="Error details">
               <ErrorTopSection explanation={displayData} />
             </section>
 
             <SectionDivider />
 
-            <section id="analysis"  aria-label="AI analysis">
+            <section id="analysis" aria-label="AI analysis">
               <AIExplanationSection explanation={displayData} />
             </section>
 

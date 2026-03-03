@@ -1,11 +1,13 @@
-
 export const API_ENDPOINTS = {
   // ── Analysis ─────────────────────────────────────────────
   ANALYZE: '/analyze',
 
+  // ── Detection (framework auto-detect) ────────────────────
+  DETECT: '/detect',
+
   // ── Session ──────────────────────────────────────────────
-  SESSION: (sessionId: string) => `/session/${sessionId}`,
-  SESSION_STATUS: (sessionId: string) => `/session/${sessionId}/status`,
+  SESSION:          (sessionId: string) => `/session/${sessionId}`,
+  SESSION_STATUS:   (sessionId: string) => `/session/${sessionId}/status`,
   SESSION_ANALYSIS: (sessionId: string) => `/session/${sessionId}/analysis`,
   SESSION_ATTEMPTS: (sessionId: string) => `/session/${sessionId}/attempts`,
 

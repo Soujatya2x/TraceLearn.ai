@@ -10,23 +10,25 @@ import { useAuthStore } from '@/store/useAuthStore'
 type CallbackState = 'loading' | 'success' | 'error'
 
 export default function AuthCallbackPage() {
-  const router       = useRouter()
-  const params       = useSearchParams()
-  const setUser      = useAuthStore((s) => s.setUser)
-  const [state, setState] = useState<CallbackState>('loading')
+  const router   = useRouter()
+  const params   = useSearchParams()
+  const setUser  = useAuthStore((s) => s.setUser)
+
+  const [state, setState]       = useState<CallbackState>('loading')
   const [errorMsg, setErrorMsg] = useState('')
   const handled = useRef(false)
 
   useEffect(() => {
+    // Guard against React StrictMode double-invoke in dev
     if (handled.current) return
     handled.current = true
 
-    const code     = params.get('code')    ?? ''
-    const oauthState = params.get('state') ?? ''
-    const provider = (params.get('provider') ?? 'google') as 'google' | 'github'
-    const next     = params.get('next')    ?? '/'
+    const code       = params.get('code')     ?? ''
+    const oauthState = params.get('state')    ?? ''
+    const provider   = (params.get('provider') ?? 'google') as 'google' | 'github'
+    const next       = params.get('next')     ?? '/'
 
-    if (!code) {
+    if (!code || !oauthState) {
       setState('error')
       setErrorMsg('No authorization code received from provider.')
       return
@@ -34,6 +36,7 @@ export default function AuthCallbackPage() {
 
     handleOAuthCallback({ code, state: oauthState, provider })
       .then(({ user }) => {
+        // setUser calls syncUserId internally — roadmap hook gets userId immediately
         setUser(user)
         setState('success')
         setTimeout(() => router.replace(next), 1000)
@@ -56,7 +59,7 @@ export default function AuthCallbackPage() {
       >
         {/* Logo */}
         <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg">
-          <Zap className="w-5 h-5 text-primary-foreground" />
+          <img src="/apple-icon.png" alt="TraceLearn.ai" className="w-full h-full object-cover" draggable={false} />
         </div>
 
         {/* State icon */}
@@ -68,9 +71,10 @@ export default function AuthCallbackPage() {
         >
           {state === 'loading' && <Loader2 className="w-10 h-10 text-primary animate-spin" />}
           {state === 'success' && <CheckCircle2 className="w-10 h-10 text-emerald-500" />}
-          {state === 'error'   && <XCircle      className="w-10 h-10 text-destructive" />}
+          {state === 'error'   && <XCircle      className="w-10 h-10 text-destructive"  />}
         </motion.div>
 
+        {/* Message */}
         <div>
           <p className="text-base font-semibold text-foreground">
             {state === 'loading' && 'Finishing sign-in…'}

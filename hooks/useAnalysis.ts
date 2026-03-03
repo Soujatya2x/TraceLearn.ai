@@ -18,12 +18,12 @@ import type { Language } from '@/types'
 // ─── Query Keys ──────────────────────────────────────────────
 
 export const queryKeys = {
-  session: (id: string) => ['session', id] as const,
-  explanation: (id: string) => ['explanation', id] as const,
-  validation: (id: string) => ['validation', id] as const,
-  chat: (id: string) => ['chat', id] as const,
-  artifacts: (id: string) => ['artifacts', id] as const,
-  roadmap: (userId: string) => ['roadmap', userId] as const,
+  session:     (id: string)     => ['session',     id] as const,
+  explanation: (id: string)     => ['explanation', id] as const,
+  validation:  (id: string)     => ['validation',  id] as const,
+  chat:        (id: string)     => ['chat',        id] as const,
+  artifacts:   (id: string)     => ['artifacts',   id] as const,
+  roadmap:     (userId: string) => ['roadmap', userId] as const,
 }
 
 // ─── Analyze Code ────────────────────────────────────────────
@@ -38,12 +38,14 @@ export function useAnalyzeCode() {
       language,
       logFile,
       projectFiles,
+      frameworkType,
     }: {
       code: string
       language: Language
       logFile?: File | null
       projectFiles?: File[]
-    }) => analyzeCode(code, language, logFile, projectFiles),
+      frameworkType?: string | null
+    }) => analyzeCode(code, language, logFile, projectFiles, frameworkType),
 
     onMutate: () => {
       setAnalysisStatus('processing')

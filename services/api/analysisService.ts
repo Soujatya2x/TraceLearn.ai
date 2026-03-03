@@ -16,6 +16,36 @@ import type {
   ValidationResult,
 } from '@/types'
 
+// ─── Detect Framework ────────────────────────────────────────
+//
+// Called automatically when user uploads a code file.
+// No user action needed — fires on file onChange.
+// Returns detection result so FileUploadZone can update its UI
+// and WorkspaceRightPanel can conditionally show the log file zone.
+
+export interface DetectResult {
+  /** "LIVE_EXECUTION" | "LOG_ANALYSIS" */
+  mode: 'LIVE_EXECUTION' | 'LOG_ANALYSIS'
+  /** "springboot" | "fastapi" | null */
+  detectedFramework: string | null
+  /** 0.0–1.0 confidence score */
+  confidence: number
+  /** Human-readable reason for debugging / UI tooltip */
+  reason: string
+}
+
+export async function detectFramework(codeFile: File): Promise<DetectResult> {
+  const formData = new FormData()
+  formData.append('code', codeFile, codeFile.name)
+
+  const response = await apiClient.post<ApiResponse<DetectResult>>(
+    API_ENDPOINTS.DETECT,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  )
+  return response.data.data
+}
+
 // ─── Analyze Code ────────────────────────────────────────────
 
 export async function analyzeCode(
@@ -23,12 +53,16 @@ export async function analyzeCode(
   language: Language,
   logFile?: File | null,
   projectFiles?: File[],
+  frameworkType?: string | null,
 ): Promise<AnalyzeResponse> {
   const formData = new FormData()
   formData.append('code', new Blob([code], { type: 'text/plain' }), 'main.py')
   formData.append('language', language)
   if (logFile) {
     formData.append('logs', logFile, logFile.name)
+  }
+  if (frameworkType) {
+    formData.append('frameworkType', frameworkType)
   }
   if (projectFiles?.length) {
     projectFiles.forEach((f) => formData.append('projectFiles', f, f.name))
@@ -52,9 +86,6 @@ export async function getSession(sessionId: string): Promise<Session> {
 }
 
 // ─── Get Error Explanation ───────────────────────────────────
-//
-// Calls GET /session/{id}/analysis (the real backend endpoint).
-// Maps BackendAnalysis → ErrorExplanation (the shape the Explanation page needs).
 
 export async function getErrorExplanation(
   sessionId: string,
@@ -66,9 +97,6 @@ export async function getErrorExplanation(
 }
 
 // ─── Get Validation Result ───────────────────────────────────
-//
-// Calls GET /session/{id} for the session + GET /session/{id}/attempts for execution data.
-// Maps BackendSession + BackendExecutionAttempt[] → ValidationResult (what the Validation page needs).
 
 export async function getValidationResult(
   sessionId: string,
@@ -92,31 +120,22 @@ export async function retryExecution(sessionId: string): Promise<Session> {
   return response.data.data
 }
 
-// ─── Mapping: BackendAnalysis → ErrorExplanation ─────────────
-//
-// The backend stores analysis data in AiAnalysisResponse — a flat DTO with
-// JSON-deserialized fields. The Explanation page uses ErrorExplanation which
-// has a richer shape (conceptBehindError as object, similarErrorsHistory, etc.).
-// This function bridges the two without touching the backend.
+// ─── Mapping helpers (unchanged) ────────────────────────────
 
 function mapAnalysisToErrorExplanation(
   sessionId: string,
   analysis: BackendAnalysis,
 ): ErrorExplanation {
-  // stackTrace from backend is a raw string — split into lines for the UI
   const stackTraceLines: string[] = analysis.stackTrace
     ? analysis.stackTrace.split('\n').filter((l) => l.trim().length > 0)
     : []
 
-  // conceptBehindError from backend is a plain string — wrap into ConceptExplanation
   const conceptBehindError = {
     concept: analysis.conceptBehindError ?? 'Unknown Concept',
     description: analysis.explanation ?? '',
-    icon: '🛡️',  // default icon — backend doesn't provide one
+    icon: '🛡️',
   }
 
-  // learningResources from backend are already typed objects {title, url, type}
-  // Add a source field derived from the URL hostname
   const learningResources = (analysis.learningResources ?? []).map((r) => ({
     title: r.title,
     url: r.url,
@@ -124,13 +143,11 @@ function mapAnalysisToErrorExplanation(
     source: extractHostname(r.url),
   }))
 
-  // similarErrors from backend: {errorType, description, example}
-  // Map to the SimilarError shape the history list needs
   const similarErrorsHistory = (analysis.similarErrors ?? []).map((e, i) => ({
     sessionId: `similar-${i}`,
     errorType: e.errorType,
     date: 'Previous session',
-    resolved: true,  // backend doesn't track resolved status per similar error
+    resolved: true,
   }))
 
   return {
@@ -148,24 +165,16 @@ function mapAnalysisToErrorExplanation(
   }
 }
 
-// ─── Mapping: BackendSession + BackendExecutionAttempt[] → ValidationResult ──
-//
-// The Validation page shows original vs fixed code, the fix explanation, and
-// execution output. All of this comes from SessionDetailResponse.aiAnalysis
-// and the latest execution attempt.
-
 function mapSessionToValidationResult(
   session: BackendSession,
   attempts: BackendExecutionAttempt[],
 ): ValidationResult {
   const analysis = session.aiAnalysis
 
-  // Latest attempt = highest attemptNumber
   const latestAttempt = attempts.length > 0
     ? attempts.reduce((best, a) => a.attemptNumber > best.attemptNumber ? a : best)
     : null
 
-  // Determine validation status from the latest attempt's execution status
   let validationStatus: 'success' | 'failed' | 'pending' = 'pending'
   if (latestAttempt) {
     if (latestAttempt.status === 'SUCCESS') validationStatus = 'success'
@@ -176,13 +185,13 @@ function mapSessionToValidationResult(
     sessionId: session.sessionId,
     originalCode: session.originalCode ?? '',
     fixedCode: analysis?.fixedCode ?? '',
-    diffLines: [],  // diff computation is a UI concern — computed in the component
+    diffLines: [],
     whatChanged: analysis?.fixAnalysis?.whatChanged ?? '',
     whyItWorks: analysis?.fixAnalysis?.whyItWorks ?? '',
     reinforcedConcept: analysis?.fixAnalysis?.reinforcedConcept ?? '',
     validationStatus,
     retryCount: session.retryCount ?? 0,
-    maxRetries: 2,  // matches backend AppProperties default
+    maxRetries: 2,
     executionOutput: {
       stdout: latestAttempt?.stdout ?? '',
       stderr: latestAttempt?.stderr ?? '',
@@ -191,8 +200,6 @@ function mapSessionToValidationResult(
     },
   }
 }
-
-// ─── Private helpers ──────────────────────────────────────────
 
 function extractHostname(url: string): string {
   try {

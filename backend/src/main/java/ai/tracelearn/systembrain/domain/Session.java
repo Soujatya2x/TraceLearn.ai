@@ -10,7 +10,8 @@ import java.util.List;
 @Table(name = "sessions", indexes = {
         @Index(name = "idx_sessions_user_id", columnList = "user_id"),
         @Index(name = "idx_sessions_status", columnList = "status"),
-        @Index(name = "idx_sessions_created_at", columnList = "created_at")
+        @Index(name = "idx_sessions_created_at", columnList = "created_at"),
+        @Index(name = "idx_sessions_execution_mode", columnList = "execution_mode")
 })
 @Getter
 @Setter
@@ -46,6 +47,35 @@ public class Session extends BaseEntity {
 
     @Column(name = "original_filename", length = 255)
     private String originalFilename;
+
+    // ─── Execution Mode (added for framework-aware routing) ─────────────────
+
+    /**
+     * Controls how the analysis pipeline is routed for this session.
+     *
+     * LIVE_EXECUTION (default): code → Sandbox → AI Agent
+     *   For standalone scripts, algorithms, single-file programs.
+     *
+     * LOG_ANALYSIS: code + logs → AI Agent directly (Sandbox skipped)
+     *   For framework-based projects: Spring Boot, FastAPI, Django, Express.
+     *   The developer's error log already contains the real failure.
+     *   No sandbox needed — AI reads the log directly with framework context.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "execution_mode", nullable = false, length = 30)
+    @Builder.Default
+    private ExecutionMode executionMode = ExecutionMode.LIVE_EXECUTION;
+
+    /**
+     * Optional framework identifier for LOG_ANALYSIS sessions.
+     * Tells the AI Agent which framework-specific prompt to use.
+     * Values: "springboot" | "fastapi" | "django" | "express" | "nestjs" | "react"
+     * Null for LIVE_EXECUTION sessions.
+     */
+    @Column(name = "framework_hint", length = 50)
+    private String frameworkHint;
+
+    // ─── Relationships ───────────────────────────────────────────────────────
 
     @OneToMany(mappedBy = "session", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @OrderBy("attemptNumber ASC")
