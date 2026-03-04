@@ -23,9 +23,16 @@ export type AuthStatus = 'idle' | 'loading' | 'authenticated' | 'unauthenticated
 
 export interface AuthTokens {
   accessToken: string
-  refreshToken: string
-  /** Unix timestamp (ms) */
+  /**
+   * Refresh token is intentionally absent from this type.
+   *
+   * HIGH-3 FIX: The refresh token is stored in an httpOnly cookie set by the
+   * backend — it never appears in API response bodies or JavaScript variables.
+   * Removing it from this type prevents any future code from accidentally
+   * reading or storing it.
+   */
   expiresAt: number
+  tokenType?: string
 }
 
 // ─── Request / Response shapes ────────────────────────────────
@@ -41,23 +48,18 @@ export interface SignUpEmailRequest {
   password: string
 }
 
-export interface OAuthCallbackRequest {
-  /** The `code` query param returned by the OAuth provider */
-  code: string
-  /** The `state` param for CSRF validation */
-  state: string
-  /** Only OAuth providers — email has no callback flow */
-  provider: 'google' | 'github'
-}
-
 export interface AuthResponse {
   user: User
   tokens: AuthTokens
 }
 
-export interface RefreshTokenRequest {
-  refreshToken: string
-}
+/**
+ * RefreshTokenRequest removed.
+ *
+ * HIGH-3 FIX: The /refresh endpoint no longer accepts a token in the request
+ * body. It reads the refresh token from the httpOnly cookie automatically.
+ * The frontend sends an empty POST body — the browser handles the cookie.
+ */
 
 export interface RefreshTokenResponse {
   tokens: AuthTokens
@@ -75,11 +77,4 @@ export interface SignUpFormValues {
   email: string
   password: string
   confirmPassword: string
-}
-
-// ─── OAuth provider URLs returned by backend ──────────────────
-
-export interface OAuthUrlResponse {
-  url: string
-  state: string
 }

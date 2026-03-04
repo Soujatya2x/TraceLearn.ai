@@ -35,18 +35,18 @@ public class SessionService {
      */
     @Transactional
     public Session createSession(User user, String language, String workspacePath,
-                                  String originalCode, String originalLogs,
                                   String originalFilename,
                                   ExecutionMode executionMode,
                                   String frameworkHint) {
+        // MEDIUM-4 FIX: originalCode and originalLogs are no longer persisted to the DB.
+        // They are stored on disk in the workspace (workspacePath/main.{ext} and logs.txt).
+        // Use WorkspaceService.readCodeFile() / readLogFile() when needed downstream.
         Session session = Session.builder()
                 .user(user)
                 .language(language.toLowerCase())
                 .status(SessionStatus.CREATED)
                 .retryCount(0)
                 .workspacePath(workspacePath)
-                .originalCode(originalCode)
-                .originalLogs(originalLogs)
                 .originalFilename(originalFilename)
                 .executionMode(executionMode)
                 .frameworkHint(frameworkHint)

@@ -44,8 +44,11 @@ public class User extends BaseEntity {
     private UserRole role = UserRole.USER;
 
     @Column(name = "email_verified", nullable = false)
+    // MEDIUM-2: emailVerified defaults to true — we have no email verification flow yet.
+    // When real verification is added: set false here, add verificationToken column (V14+),
+    // add GET /auth/verify endpoint, and enforce in AnalyzeController.resolveUser().
     @Builder.Default
-    private boolean emailVerified = false;
+    private boolean emailVerified = true;
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default

@@ -10,6 +10,7 @@ import ai.tracelearn.systembrain.exception.ResourceNotFoundException;
 import ai.tracelearn.systembrain.mapper.ChatMapper;
 import ai.tracelearn.systembrain.repository.ChatMessageRepository;
 import ai.tracelearn.systembrain.repository.SessionRepository;
+import ai.tracelearn.systembrain.service.WorkspaceService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,6 +33,7 @@ public class ChatService {
 
     private final ChatMessageRepository chatMessageRepository;
     private final SessionRepository sessionRepository;
+    private final WorkspaceService workspaceService;
     private final ChatMapper chatMapper;
     private final ObjectMapper objectMapper;
 
@@ -128,9 +130,13 @@ public class ChatService {
         if (analysis != null && analysis.getExplanation() != null) {
             String exp = analysis.getExplanation();
             errorContext = exp.length() > 200 ? exp.substring(0, 200) + "…" : exp;
-        } else if (session.getOriginalLogs() != null && !session.getOriginalLogs().isBlank()) {
-            String logs = session.getOriginalLogs();
-            errorContext = logs.length() > 200 ? logs.substring(0, 200) + "…" : logs;
+        } else {
+            // MEDIUM-4: original_logs no longer stored in DB — read from workspace filesystem.
+            // workspacePath is always set on the session so this is safe to call here.
+            String logs = workspaceService.readLogFile(session.getWorkspacePath());
+            if (logs != null && !logs.isBlank()) {
+                errorContext = logs.length() > 200 ? logs.substring(0, 200) + "…" : logs;
+            }
         }
 
         // ── messages: full ordered history ──

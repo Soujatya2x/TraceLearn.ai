@@ -1,0 +1,57 @@
+# Test profile — loaded by all @SpringBootTest tests via @ActiveProfiles("test").
+#
+# Key overrides:
+#   - Datasource is provided by Testcontainers @ServiceConnection (no URL needed here)
+#   - Redis is mocked via MockRedisConfiguration (no real Redis needed for tests)
+#   - Sandbox / AI Agent base URLs point to WireMock or are unused in unit tests
+#   - JWT secret is a fixed test value — short tokens for fast testing
+#   - Async pipelines (OrchestrationService) are stubbed in controller tests
+
+spring:
+  flyway:
+    enabled: true   # Flyway runs against the Testcontainers PostgreSQL instance
+
+  # Redis auto-config is replaced by MockRedisConfiguration in test scope.
+  # These values satisfy the @NotBlank validation on AppProperties but are
+  # never actually used — MockRedisConfiguration provides an in-memory stub.
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+app:
+  jwt:
+    # 64-byte base64 test secret — never use in production.
+    # Generated with: openssl rand -base64 64
+    secret: "dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaHMyNTYtaW4tdGVzdHMtb25seQ=="
+    expiration-ms: 3600000         # 1 hour — long enough for any test run
+    refresh-expiration-ms: 86400000  # 1 day
+
+  workspace:
+    root-path: /tmp/tracelearn-test-workspaces
+    max-age-hours: 1
+
+  sandbox:
+    base-url: http://localhost:9999   # WireMock port (unused in controller tests — stubbed)
+    execute-endpoint: /sandbox/execute
+    default-timeout: 30
+    connect-timeout-ms: 1000
+    read-timeout-ms: 5000
+    internal-secret: test-secret
+
+  ai-agent:
+    base-url: http://localhost:9998   # WireMock port (unused in controller tests — stubbed)
+    analyze-endpoint: /analyze
+    chat-endpoint: /chat
+    artifacts-endpoint: /artifacts
+    roadmap-endpoint: /roadmap
+    connect-timeout-ms: 1000
+    read-timeout-ms: 5000
+
+  rate-limit:
+    analyze-requests-per-minute: 5
+    analyze-requests-per-hour: 30
+    max-concurrent-sessions: 3
+
+  cors:
+    allowed-origins: "http://localhost:3000"

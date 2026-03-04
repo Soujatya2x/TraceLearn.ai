@@ -40,6 +40,25 @@ class Settings(BaseSettings):
     # Set False in production — pre-pull images during EC2 AMI baking
     AUTO_PULL_IMAGES: bool = True
 
+    # ── Internal Service Authentication ───────────────────────────────────────
+    # Shared secret between System Brain (backend) and Sandbox.
+    # Backend sends this in the X-Internal-Secret header on every request.
+    # Sandbox middleware rejects any request missing or mismatching this value.
+    #
+    # Generate with: openssl rand -hex 32
+    # Set the SAME value in both services:
+    #   Sandbox env:  INTERNAL_SECRET=<value>
+    #   Backend env:  SANDBOX_INTERNAL_SECRET=<same value>
+    #
+    # INTERNAL_SECRET=""  — auth check is SKIPPED (development convenience only).
+    #                       REQUIRE_INTERNAL_AUTH=True with a non-empty secret
+    #                       enforces auth in all environments including staging.
+    INTERNAL_SECRET: str = ""
+
+    # Set to False only in local development when you haven't generated a secret yet.
+    # In production this MUST be True with a non-empty INTERNAL_SECRET.
+    REQUIRE_INTERNAL_AUTH: bool = True
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

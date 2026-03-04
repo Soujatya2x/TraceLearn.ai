@@ -39,11 +39,10 @@ public class Session extends BaseEntity {
     @Column(name = "workspace_path", nullable = false, length = 512)
     private String workspacePath;
 
-    @Column(name = "original_code", columnDefinition = "TEXT")
-    private String originalCode;
-
-    @Column(name = "original_logs", columnDefinition = "TEXT")
-    private String originalLogs;
+    // MEDIUM-4 FIX: original_code and original_logs removed from DB (V15 migration).
+    // These fields are no longer persisted. The workspace filesystem is the source
+    // of truth. Use WorkspaceService.readCodeFile() / readLogFile() when needed.
+    // Columns dropped by V15__drop_code_from_sessions.sql.
 
     @Column(name = "original_filename", length = 255)
     private String originalFilename;

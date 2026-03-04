@@ -8,6 +8,8 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.CompletableFuture;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * Gateway that runs all AI Agent calls on the dedicated "analysisExecutor" thread pool.
@@ -29,6 +31,17 @@ import java.util.concurrent.CompletableFuture;
  *
  * Returns CompletableFuture so the calling pipeline can .get() and propagate
  * exceptions correctly without losing the stack trace.
+ *
+ * REACTIVE BRIDGE (non-blocking variants):
+ *   The ...Reactive() methods below use Mono.toFuture() with subscribeOn(boundedElastic())
+ *   to release the analysisExecutor thread during I/O wait. This means a 30-second LLM
+ *   call holds 0 threads for the duration instead of 2 (one taskExecutor + one analysisExecutor).
+ *   The boundedElastic scheduler is sized for blocking I/O and is the correct scheduler
+ *   to use here — it parks the subscription on a thread that can block without starving
+ *   the Netty event loop.
+ *
+ *   Call sites in AsyncPipelineExecutor use the reactive variants. The blocking variants
+ *   are kept for any synchronous callers and for backward compatibility.
  */
 @Slf4j
 @Service
@@ -104,5 +117,53 @@ public class AnalysisGateway {
             failed.completeExceptionally(e);
             return failed;
         }
+    }
+
+    // ─── Reactive (non-blocking) variants ────────────────────────────────────
+    //
+    // These bridge AiAgentClient's Mono<T> into CompletableFuture<T> without .block().
+    // subscribeOn(boundedElastic()) parks the subscription on a thread that is designed
+    // for blocking I/O, freeing the analysisExecutor thread immediately so it can accept
+    // the next pipeline without waiting for LLM inference to complete.
+    //
+    // AsyncPipelineExecutor calls these instead of the blocking variants above.
+    // The @Async annotation is still present — the reactive subscription is set up on
+    // the analysisExecutor thread, then the thread is released back to the pool while
+    // boundedElastic handles the actual wait.
+
+    @Async("analysisExecutor")
+    public CompletableFuture<AiAnalyzeResponse> analyzeCodeReactive(AiAnalyzeRequest request) {
+        log.debug("AnalysisGateway.analyzeCodeReactive — sessionId={}, thread={}",
+                request.getSessionId(), Thread.currentThread().getName());
+        return aiAgentClient.analyzeCodeReactive(request)
+                .subscribeOn(Schedulers.boundedElastic())
+                .toFuture();
+    }
+
+    @Async("analysisExecutor")
+    public CompletableFuture<AiChatResponse> chatReactive(AiChatRequest request) {
+        log.debug("AnalysisGateway.chatReactive — sessionId={}, thread={}",
+                request.getSessionId(), Thread.currentThread().getName());
+        return aiAgentClient.chatReactive(request)
+                .subscribeOn(Schedulers.boundedElastic())
+                .toFuture();
+    }
+
+    @Async("analysisExecutor")
+    public CompletableFuture<AiArtifactsResponse> generateArtifactsReactive(AiArtifactsRequest request) {
+        log.debug("AnalysisGateway.generateArtifactsReactive — sessionId={}, thread={}",
+                request.getSessionId(), Thread.currentThread().getName());
+        return aiAgentClient.generateArtifactsReactive(request)
+                .subscribeOn(Schedulers.boundedElastic())
+                .toFuture();
+    }
+
+    @Async("analysisExecutor")
+    public CompletableFuture<AiRoadmapResponse> generateRoadmapReactive(AiRoadmapRequest request) {
+        log.debug("AnalysisGateway.generateRoadmapReactive — userId={}, thread={}",
+                request.getUserId(), Thread.currentThread().getName());
+        return aiAgentClient.generateRoadmapReactive(request)
+                .subscribeOn(Schedulers.boundedElastic())
+                .toFuture();
     }
 }

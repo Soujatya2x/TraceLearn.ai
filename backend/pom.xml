@@ -23,6 +23,7 @@
         <jjwt.version>0.12.6</jjwt.version>
         <aws.sdk.version>2.25.16</aws.sdk.version>
         <flyway.version>10.10.0</flyway.version>
+        <bucket4j.version>8.10.1</bucket4j.version>
     </properties>
 
     <dependencies>
@@ -139,7 +140,29 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- Caffeine Cache -->
+        <!-- Testcontainers — real PostgreSQL for integration tests.
+             spring-boot-testcontainers provides @ServiceConnection which
+             auto-wires the container's URL/credentials into Spring datasource
+             properties without a @DynamicPropertySource method. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Required for @Testcontainers and @Container JUnit 5 annotations.
+             spring-boot-testcontainers does NOT pull this in transitively. -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Caffeine Cache (kept for potential local fallback / other caches) -->
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
@@ -150,7 +173,21 @@
         <dependency>
             <groupId>com.bucket4j</groupId>
             <artifactId>bucket4j-core</artifactId>
-            <version>8.10.1</version>
+            <version>${bucket4j.version}</version>
+        </dependency>
+
+        <!-- Bucket4j Lettuce/Redis integration — distributed rate limiting across instances -->
+        <!-- Uses Lettuce (Spring Boot's default Redis client) via StatefulRedisConnection -->
+        <dependency>
+            <groupId>com.bucket4j</groupId>
+            <artifactId>bucket4j-redis</artifactId>
+            <version>${bucket4j.version}</version>
+        </dependency>
+
+        <!-- Redis — distributed state for rate limiter buckets -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
     </dependencies>
 

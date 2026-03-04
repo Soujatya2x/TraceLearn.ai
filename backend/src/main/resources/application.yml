@@ -42,6 +42,25 @@ spring:
     baseline-on-migrate: true
     validate-on-migrate: true
 
+  # ── Redis — distributed rate limiting (AnalyzeRateLimiter) ──
+  # Shared across all backend instances so per-user limits are enforced globally.
+  # REDIS_HOST / REDIS_PORT / REDIS_PASSWORD must be set in production.
+  # Defaults allow local development without a Redis instance configured
+  # (Spring Boot will attempt to connect; app starts but checkTokenBucket
+  #  will fail on first request if Redis is unreachable).
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 4
+          min-idle: 1
+          max-wait: 1000ms
+
   # ── Security / OAuth2 ──
   security:
     oauth2:
@@ -82,12 +101,25 @@ spring:
 # ── Application Config ──
 app:
   jwt:
-    secret: ${JWT_SECRET:super-secret-key-that-must-be-changed-in-production-min-256-bits-long}
+    # !! SECURITY: No fallback value — app will refuse to start if JWT_SECRET is not set.
+    # The old fallback "super-secret-key..." was committed to git and is publicly known.
+    # Any attacker with that string can forge valid JWTs for any user.
+    #
+    # Generate a proper secret before running:
+    #   openssl rand -base64 32
+    #
+    # Then set it as an environment variable or in AWS Secrets Manager:
+    #   JWT_SECRET=<output of above command>
+    #
+    # The value MUST be a Base64-encoded string of at least 32 random bytes (256 bits).
+    # JwtTokenProvider decodes it with Base64.getDecoder() — non-base64 strings will
+    # cause an IllegalArgumentException at startup.
+    secret: ${JWT_SECRET}
     expiration-ms: 86400000          # 24 hours
     refresh-expiration-ms: 604800000 # 7 days
 
   workspace:
-    root-path: ${WORKSPACE_ROOT}   # :/tmp/tracelearn/workspaces
+    root-path: ${WORKSPACE_ROOT}
     cleanup-cron: "0 0 */6 * * *"   # Every 6 hours
     max-age-hours: 24
 
@@ -97,6 +129,11 @@ app:
     default-timeout: 10
     connect-timeout-ms: 5000
     read-timeout-ms: 30000
+    # Shared secret sent as X-Internal-Secret header on every sandbox request.
+    # Must match INTERNAL_SECRET env var on the sandbox service.
+    # Empty fallback = auth disabled locally (sandbox logs a startup warning).
+    # Generate: openssl rand -hex 32
+    internal-secret: ${SANDBOX_INTERNAL_SECRET:}
 
   ai-agent:
     base-url: ${AI_AGENT_URL:http://localhost:8081}

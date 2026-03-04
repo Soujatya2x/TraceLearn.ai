@@ -59,6 +59,11 @@ public class SandboxClient {
             SandboxExecuteResponse response = sandboxWebClient
                     .post()
                     .uri(appProperties.getSandbox().getExecuteEndpoint())
+                    // Send the shared internal secret so the sandbox middleware
+                    // can verify this request is from System Brain and not an
+                    // external caller that somehow reached the sandbox port.
+                    // Empty string when not configured (sandbox warns at startup).
+                    .header("X-Internal-Secret", appProperties.getSandbox().getInternalSecret())
                     .bodyValue(request)
                     .retrieve()
                     .bodyToMono(SandboxExecuteResponse.class)

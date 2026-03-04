@@ -14,7 +14,10 @@ import org.springframework.web.bind.annotation.*;
 
 /**
  * User profile endpoint.
- *   GET /api/v1/user/profile - Get current user profile
+ *   GET /api/v1/user/profile — Get current user profile
+ *
+ * Returns AuthResponse.UserDto (same type as GET /api/v1/auth/me) so both
+ * endpoints produce the same shape and the frontend can use either interchangeably.
  */
 @Slf4j
 @RestController
@@ -25,19 +28,24 @@ public class UserController {
     private final UserRepository userRepository;
 
     @GetMapping("/profile")
-    public ResponseEntity<ApiResponse<AuthResponse>> getProfile(
+    public ResponseEntity<ApiResponse<AuthResponse.UserDto>> getProfile(
             @AuthenticationPrincipal UserPrincipal principal) {
 
         User user = userRepository.findById(principal.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", principal.getId().toString()));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "User", "id", principal.getId().toString()));
 
-        AuthResponse response = AuthResponse.builder()
-                .userId(user.getId())
+        AuthResponse.UserDto dto = AuthResponse.UserDto.builder()
+                .id(user.getId())
                 .email(user.getEmail())
-                .displayName(user.getDisplayName())
+                .name(user.getDisplayName())
                 .avatarUrl(user.getAvatarUrl())
+                .provider(user.getAuthProvider().name().toLowerCase())
+                .emailVerified(user.isEmailVerified())
+                .createdAt(user.getCreatedAt() != null ? user.getCreatedAt().toString() : null)
+                .updatedAt(user.getUpdatedAt() != null ? user.getUpdatedAt().toString() : null)
                 .build();
 
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return ResponseEntity.ok(ApiResponse.success(dto));
     }
 }

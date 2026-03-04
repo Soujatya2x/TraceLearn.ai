@@ -116,6 +116,47 @@ public class WorkspaceService {
         return Files.exists(Path.of(getWorkspacePath(sessionId)));
     }
 
+    /**
+     * Read the main code file from a workspace.
+     * Used after MEDIUM-4 fix: original_code is no longer stored in the DB.
+     * The workspace filesystem is the single source of truth for session code.
+     *
+     * @param workspacePath absolute path stored on Session.workspacePath
+     * @param language      used to resolve the filename (main.py, Main.java, etc.)
+     * @return file contents, or empty string if the file doesn't exist or can't be read
+     */
+    public String readCodeFile(String workspacePath, String language) {
+        try {
+            Path file = Path.of(workspacePath).resolve(resolveMainFilename(language));
+            if (!Files.exists(file)) {
+                log.warn("Code file not found in workspace: {}", file);
+                return "";
+            }
+            return Files.readString(file);
+        } catch (IOException e) {
+            log.warn("Could not read code file from workspace {}: {}", workspacePath, e.getMessage());
+            return "";
+        }
+    }
+
+    /**
+     * Read the log file from a workspace.
+     * Used after MEDIUM-4 fix: original_logs is no longer stored in the DB.
+     *
+     * @param workspacePath absolute path stored on Session.workspacePath
+     * @return file contents, or null if no log file was uploaded for this session
+     */
+    public String readLogFile(String workspacePath) {
+        try {
+            Path file = Path.of(workspacePath).resolve("logs.txt");
+            if (!Files.exists(file)) return null;
+            return Files.readString(file);
+        } catch (IOException e) {
+            log.warn("Could not read log file from workspace {}: {}", workspacePath, e.getMessage());
+            return null;
+        }
+    }
+
     private String resolveMainFilename(String language) {
         return switch (language.toLowerCase()) {
             case "python" -> "main.py";

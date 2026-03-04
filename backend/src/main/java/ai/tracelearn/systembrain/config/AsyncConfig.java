@@ -5,10 +5,13 @@ import org.springframework.aop.interceptor.SimpleAsyncUncaughtExceptionHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 
+@Slf4j
 @Configuration
 public class AsyncConfig implements AsyncConfigurer {
 
@@ -26,6 +29,14 @@ public class AsyncConfig implements AsyncConfigurer {
         executor.setThreadNamePrefix("orchestration-");
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60);
+        // MEDIUM-7 FIX: When queue is full (100 queued + 20 active = 120 tasks),
+        // run the task in the HTTP request thread instead of dropping it.
+        // This slows the HTTP response (~30–60s) but guarantees no session is
+        // silently stuck in CREATED with no error. The catch block in
+        // OrchestrationService.analyzeCode() handles TaskRejectedException as a
+        // second line of defense when CallerRunsPolicy cannot be used (e.g. if
+        // the executor is shut down during deployment).
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.initialize();
         return executor;
     }
@@ -43,6 +54,7 @@ public class AsyncConfig implements AsyncConfigurer {
         executor.setThreadNamePrefix("analysis-");
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60);
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.initialize();
         return executor;
     }
@@ -60,6 +72,7 @@ public class AsyncConfig implements AsyncConfigurer {
         executor.setThreadNamePrefix("sandbox-");
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(30);
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.initialize();
         return executor;
     }
@@ -73,8 +86,29 @@ public class AsyncConfig implements AsyncConfigurer {
         return taskExecutor();
     }
 
+    /**
+     * MEDIUM-7 FIX: Custom uncaught exception handler for @Async methods.
+     *
+     * SimpleAsyncUncaughtExceptionHandler (the default) only logs the exception
+     * and does nothing else — sessions thrown from within async methods that
+     * escape all try-catch blocks would remain in their last status forever.
+     *
+     * This handler logs at ERROR level with the method name and parameters,
+     * making it easy to grep in CloudWatch: "ASYNC_UNCAUGHT_EXCEPTION".
+     *
+     * NOTE: This handler only fires for exceptions that escape the @Async method
+     * body entirely (i.e. past all internal try-catch blocks in the pipeline).
+     * The pipelines in AsyncPipelineExecutor already catch and handle all
+     * expected exceptions internally. This is the last-resort safety net.
+     */
     @Override
     public AsyncUncaughtExceptionHandler getAsyncUncaughtExceptionHandler() {
-        return new SimpleAsyncUncaughtExceptionHandler();
+        return (ex, method, params) -> {
+            log.error("ASYNC_UNCAUGHT_EXCEPTION in {}.{}() — {}",
+                    method.getDeclaringClass().getSimpleName(),
+                    method.getName(),
+                    ex.getMessage(),
+                    ex);
+        };
     }
 }

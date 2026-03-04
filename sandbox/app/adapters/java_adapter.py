@@ -11,16 +11,18 @@ class JavaExecutor(BaseExecutor):
     Minimum timeout: 30s (JVM startup + compilation takes time)
 
     Command breakdown:
-      sh -c '...'       = run in shell so && works
-      javac Main.java   = compile Java source → produces Main.class
-      java Main         = execute compiled bytecode
+      sh -c '...'              = run in shell so && works
+      javac -d /build Main.java = compile Java source → writes Main.class to /build
+                                  /app is read-only (workspace mount) so we can't write there.
+                                  /build is the executable tmpfs mount (MEDIUM-8 fix).
+      java -cp /build Main      = execute bytecode from /build classpath
     """
 
     def get_image(self) -> str:
         return "eclipse-temurin:17-jdk-alpine"
 
     def get_command(self) -> str:
-        return "sh -c 'javac Main.java && java Main'"
+        return "sh -c 'javac -d /build Main.java && java -cp /build Main'"
 
     def get_timeout(self) -> int:
         return max(self.timeout, 30)

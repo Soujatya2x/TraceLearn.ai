@@ -55,6 +55,14 @@ public class AppProperties {
         private int connectTimeoutMs = 5000;
         @Positive
         private int readTimeoutMs = 30000;
+        /**
+         * Shared secret sent in the X-Internal-Secret header on every sandbox request.
+         * Must match the INTERNAL_SECRET env var on the sandbox side.
+         * Empty string = auth disabled (development only — sandbox still warns at startup).
+         * Generate: openssl rand -hex 32
+         * Backend env var: SANDBOX_INTERNAL_SECRET
+         */
+        private String internalSecret = "";
     }
 
     @Getter @Setter

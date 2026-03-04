@@ -25,18 +25,31 @@ const apiClient: AxiosInstance = axios.create({
     'Content-Type': 'application/json',
     Accept: 'application/json',
   },
+  // withCredentials is set per-request in authService.ts for endpoints that
+  // need to send/receive the httpOnly refresh token cookie.
+  // We do NOT set it globally here because:
+  //   1. CORS with withCredentials=true requires an explicit Allow-Origin header
+  //      (wildcards are not allowed) — setting it globally could break other requests.
+  //   2. Only auth endpoints need cookies — API calls use Bearer token in header.
 })
 
 // ─── Request Interceptor ─────────────────────────────────────
 
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Attach auth token if available (future-proof)
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('tl_auth_token')
-      if (token && config.headers) {
-        config.headers['Authorization'] = `Bearer ${token}`
-      }
+    // Read access token from memory (tokenStorage module variable in authService.ts).
+    // Import is lazy to avoid circular dependency — authService imports apiClient,
+    // so we cannot import tokenStorage at the top level here.
+    //
+    // HIGH-3 FIX: access token is now in memory, not localStorage.
+    // We dynamically require authService to access tokenStorage.getAccess().
+    // This is safe — by the time any request fires, authService is already loaded.
+    const { tokenStorage } = require('./authService') as {
+      tokenStorage: { getAccess: () => string | null }
+    }
+    const token = tokenStorage.getAccess()
+    if (token && config.headers) {
+      config.headers['Authorization'] = `Bearer ${token}`
     }
     return config
   },

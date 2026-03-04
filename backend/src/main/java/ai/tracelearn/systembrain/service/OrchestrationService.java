@@ -5,6 +5,8 @@ import ai.tracelearn.systembrain.domain.*;
 import ai.tracelearn.systembrain.dto.*;
 import ai.tracelearn.systembrain.exception.BadRequestException;
 import ai.tracelearn.systembrain.exception.RetryLimitExceededException;
+import ai.tracelearn.systembrain.exception.ServiceUnavailableException;
+import org.springframework.core.task.TaskRejectedException;
 import ai.tracelearn.systembrain.integration.AiAgentClient;
 import ai.tracelearn.systembrain.integration.dto.*;
 import ai.tracelearn.systembrain.mapper.SessionMapper;
@@ -14,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -61,7 +64,7 @@ public class OrchestrationService {
     private final SessionRepository sessionRepository;
     private final AppProperties appProperties;
     private final AsyncPipelineExecutor asyncPipeline;
-    private final ExecutionModeDetector executionModeDetector; // NEW
+    private final ExecutionModeDetector executionModeDetector;
 
     // ─── 1. ANALYZE ─────────────────────────────────────────────────────────
 
@@ -99,20 +102,36 @@ public class OrchestrationService {
                 sessionUUID, request.getCode(), request.getLogs(), request.getLanguage());
 
         // ── Create session with detected mode ─────────────────────────────────
+        // MEDIUM-4: originalCode and originalLogs are NOT passed — they're already
+        // on disk in the workspace. SessionService no longer writes them to the DB.
         Session session = sessionService.createSession(
                 user, request.getLanguage(), workspacePath,
-                request.getCode(), request.getLogs(), request.getFilename(),
+                request.getFilename(),
                 detection.mode(), detection.frameworkHint()
         );
 
         // ── Route to correct pipeline ─────────────────────────────────────────
-        if (detection.mode() == ExecutionMode.LOG_ANALYSIS) {
-            log.info("Routing session {} to LOG_ANALYSIS pipeline [framework={}]",
-                    session.getId(), detection.frameworkHint());
-            asyncPipeline.runLogAnalysisPipeline(session, request);
-        } else {
-            log.info("Routing session {} to LIVE_EXECUTION pipeline", session.getId());
-            asyncPipeline.runAnalysisPipeline(session, request);
+        // MEDIUM-7 FIX: Catch TaskRejectedException if CallerRunsPolicy is
+        // unavailable (executor shut down during rolling deployment) or if
+        // a future policy change removes CallerRunsPolicy. In that scenario
+        // we must mark the session ERROR before throwing — otherwise the session
+        // stays in CREATED forever with no visible failure to the user.
+        try {
+            if (detection.mode() == ExecutionMode.LOG_ANALYSIS) {
+                log.info("Routing session {} to LOG_ANALYSIS pipeline [framework={}]",
+                        session.getId(), detection.frameworkHint());
+                asyncPipeline.runLogAnalysisPipeline(session, request);
+            } else {
+                log.info("Routing session {} to LIVE_EXECUTION pipeline", session.getId());
+                asyncPipeline.runAnalysisPipeline(session, request);
+            }
+        } catch (TaskRejectedException e) {
+            log.error("Thread pool full — could not queue session {}", session.getId(), e);
+            sessionService.updateSessionStatus(session.getId(), SessionStatus.ERROR);
+            notificationService.notifySessionUpdate(session.getId(), "ERROR",
+                    Map.of("reason", "Server is at capacity. Please try again in a few minutes."));
+            throw new ServiceUnavailableException("Analysis",
+                    "Server is at capacity. Please try again in a few minutes.", e);
         }
 
         return sessionMapper.toDetailResponse(session);
@@ -162,7 +181,17 @@ public class OrchestrationService {
         notificationService.notifySessionUpdate(sessionId, "EXECUTING",
                 java.util.Map.of("retryAttempt", attemptNumber));
 
-        asyncPipeline.runRetryPipeline(session, fixedCode, attemptNumber, analysis.getFixedCode());
+        // MEDIUM-7 FIX: same TaskRejectedException guard as analyzeCode()
+        try {
+            asyncPipeline.runRetryPipeline(session, fixedCode, attemptNumber, analysis.getFixedCode());
+        } catch (TaskRejectedException e) {
+            log.error("Thread pool full — could not queue retry for session {}", sessionId, e);
+            sessionService.updateSessionStatus(sessionId, SessionStatus.ERROR);
+            notificationService.notifySessionUpdate(sessionId, "ERROR",
+                    Map.of("reason", "Server is at capacity. Please try again in a few minutes."));
+            throw new ServiceUnavailableException("Analysis",
+                    "Server is at capacity. Please try again in a few minutes.", e);
+        }
 
         return sessionMapper.toDetailResponse(sessionService.getSessionEntity(sessionId));
     }
@@ -185,10 +214,13 @@ public class OrchestrationService {
                         a.getLearningSummary() != null ? a.getLearningSummary() : ""))
                 .orElse("");
 
+        // MEDIUM-4: originalLogs no longer on session entity — read from workspace
+        String errorContext = workspaceService.readLogFile(session.getWorkspacePath());
+
         AiChatRequest chatReq = AiChatRequest.builder()
                 .sessionId(sessionId.toString())
                 .userMessage(userMessage)
-                .errorContext(session.getOriginalLogs())
+                .errorContext(errorContext)
                 .analysisSummary(analysisSummary)
                 .chatHistory(history.stream()
                         .map(m -> AiChatRequest.ChatHistoryEntry.builder()

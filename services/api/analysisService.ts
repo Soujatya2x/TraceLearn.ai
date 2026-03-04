@@ -48,6 +48,23 @@ export async function detectFramework(codeFile: File): Promise<DetectResult> {
 
 // ─── Analyze Code ────────────────────────────────────────────
 
+// Maps the language to the conventional filename the backend expects.
+// Must stay in sync with WorkspaceService.resolveMainFilename() on the backend.
+// The filename is stored as session.originalFilename and returned to the frontend
+// — an incorrect value (e.g. "main.py" for Java code) confuses the user and
+// corrupts the session metadata.
+function resolveFilename(language: Language): string {
+  switch (language) {
+    case 'python':     return 'main.py'
+    case 'java':       return 'Main.java'
+    case 'javascript': return 'index.js'
+    case 'typescript': return 'index.ts'
+    case 'go':         return 'main.go'
+    // Defensive: backend also accepts these even if not in the Language type
+    default:           return 'main.txt'
+  }
+}
+
 export async function analyzeCode(
   code: string,
   language: Language,
@@ -56,7 +73,7 @@ export async function analyzeCode(
   frameworkType?: string | null,
 ): Promise<AnalyzeResponse> {
   const formData = new FormData()
-  formData.append('code', new Blob([code], { type: 'text/plain' }), 'main.py')
+  formData.append('code', new Blob([code], { type: 'text/plain' }), resolveFilename(language))
   formData.append('language', language)
   if (logFile) {
     formData.append('logs', logFile, logFile.name)

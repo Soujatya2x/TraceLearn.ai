@@ -21,13 +21,23 @@ public class JwtTokenProvider {
     private final long refreshTokenExpirationMs;
 
     public JwtTokenProvider(AppProperties appProperties) {
-        byte[] keyBytes = Decoders.BASE64.decode(
-                java.util.Base64.getEncoder().encodeToString(
-                        appProperties.getJwt().getSecret().getBytes()
-                )
-        );
-        this.signingKey = Keys.hmacShaKeyFor(keyBytes);
-        this.accessTokenExpirationMs = appProperties.getJwt().getExpirationMs();
+        // JWT_SECRET must be a Base64-encoded string of at least 32 random bytes (256 bits).
+        // Generate with: openssl rand -base64 32
+        //
+        // FIXED: The old constructor had a double-encoding bug:
+        //   1. secret.getBytes()                — converts the Base64 string to its raw ASCII bytes
+        //   2. Base64.getEncoder().encodeToString(...)  — re-encodes those bytes as Base64
+        //   3. Decoders.BASE64.decode(...)       — decodes back, but now decoding the re-encoded form
+        //
+        // This roundabout path meant the signing key was derived from the ASCII bytes of the
+        // Base64 string rather than the actual 32 random bytes the secret represents.
+        // A 44-char Base64 string only has ~52 bits of entropy in its ASCII form —
+        // far less than the 256 bits that openssl rand -base64 32 actually generated.
+        //
+        // FIX: Decode the Base64 secret string directly to get the raw 32-byte key.
+        // This is what Keys.hmacShaKeyFor() expects — the actual key bytes, not ASCII chars.
+        this.signingKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(appProperties.getJwt().getSecret()));
+        this.accessTokenExpirationMs  = appProperties.getJwt().getExpirationMs();
         this.refreshTokenExpirationMs = appProperties.getJwt().getRefreshExpirationMs();
     }
 
@@ -37,7 +47,7 @@ public class JwtTokenProvider {
     }
 
     public String generateAccessToken(UUID userId, String email) {
-        Date now = new Date();
+        Date now        = new Date();
         Date expiryDate = new Date(now.getTime() + accessTokenExpirationMs);
 
         return Jwts.builder()
@@ -50,7 +60,7 @@ public class JwtTokenProvider {
     }
 
     public String generateRefreshToken(UUID userId) {
-        Date now = new Date();
+        Date now        = new Date();
         Date expiryDate = new Date(now.getTime() + refreshTokenExpirationMs);
 
         return Jwts.builder()

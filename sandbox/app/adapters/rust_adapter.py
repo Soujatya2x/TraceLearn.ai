@@ -10,15 +10,17 @@ class RustExecutor(BaseExecutor):
     Minimum timeout: 60s — Rust compilation is intentionally slow (deep optimization).
 
     Command breakdown:
-      rustc main.rs -o main   = compile Rust source to binary named 'main'
-      ./main                  = execute the compiled binary
+      rustc main.rs -o /build/main = compile Rust source → binary written to /build/main
+                                     /app is read-only (workspace mount) — cannot write 'main' there.
+                                     /build is the executable tmpfs mount (MEDIUM-8 fix).
+      /build/main                  = execute the compiled binary from /build
     """
 
     def get_image(self) -> str:
         return "rust:1.75-slim"
 
     def get_command(self) -> str:
-        return "sh -c 'rustc main.rs -o main && ./main'"
+        return "sh -c 'rustc main.rs -o /build/main && /build/main'"
 
     def get_timeout(self) -> int:
         return max(self.timeout, 60)

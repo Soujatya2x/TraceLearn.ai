@@ -5,7 +5,6 @@ import ai.tracelearn.systembrain.domain.AuthProvider;
 import ai.tracelearn.systembrain.domain.User;
 import ai.tracelearn.systembrain.domain.UserRole;
 import ai.tracelearn.systembrain.dto.auth.AuthResponse;
-import ai.tracelearn.systembrain.dto.auth.RefreshTokenRequest;
 import ai.tracelearn.systembrain.dto.auth.SignInRequest;
 import ai.tracelearn.systembrain.dto.auth.SignUpRequest;
 import ai.tracelearn.systembrain.exception.BadRequestException;
@@ -44,19 +43,17 @@ public class AuthService {
         User user = User.builder()
                 .email(request.getEmail().toLowerCase().trim())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
-                .displayName(request.getDisplayName().trim())
+                .displayName(request.getName().trim())
                 .authProvider(AuthProvider.LOCAL)
                 .role(UserRole.USER)
-                .emailVerified(false)
+                .emailVerified(true)   // MEDIUM-2: no email verification implemented yet — see V14 migration
                 .build();
 
         user = userRepository.save(user);
         log.info("New user registered: {}", user.getEmail());
-
         return buildAuthResponse(user);
     }
 
-    @Transactional(readOnly = true)
     public AuthResponse signIn(SignInRequest request) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -75,9 +72,16 @@ public class AuthService {
         return buildAuthResponse(user);
     }
 
-    public AuthResponse refreshToken(RefreshTokenRequest request) {
-        String refreshToken = request.getRefreshToken();
-
+    /**
+     * Refresh from a token string — used by AuthController which reads
+     * the refresh token from the httpOnly cookie (not the request body).
+     *
+     * HIGH-3 FIX: The old refreshToken(RefreshTokenRequest) method accepted the
+     * token in the request body, which meant the frontend had to store it in
+     * localStorage to send it back. This method takes the raw token string
+     * that the controller extracted from the httpOnly cookie instead.
+     */
+    public AuthResponse refreshTokenFromValue(String refreshToken) {
         if (!tokenProvider.validateToken(refreshToken)) {
             throw new BadRequestException("Invalid or expired refresh token");
         }
@@ -90,19 +94,37 @@ public class AuthService {
         return buildAuthResponse(user);
     }
 
-    private AuthResponse buildAuthResponse(User user) {
-        String accessToken = tokenProvider.generateAccessToken(user.getId(), user.getEmail());
+    /**
+     * Builds the full AuthResponse including the refresh token.
+     * The controller is responsible for extracting the refresh token and
+     * setting it as an httpOnly cookie — it must NOT return it in the body.
+     * See AuthController.buildSafeResponse().
+     *
+     * Called from: signUp, signIn, refreshTokenFromValue,
+     *              OAuth2AuthenticationSuccessHandler
+     */
+    public AuthResponse buildAuthResponse(User user) {
+        String accessToken  = tokenProvider.generateAccessToken(user.getId(), user.getEmail());
         String refreshToken = tokenProvider.generateRefreshToken(user.getId());
+        long   expiresAt    = System.currentTimeMillis() + appProperties.getJwt().getExpirationMs();
 
         return AuthResponse.builder()
-                .userId(user.getId())
-                .email(user.getEmail())
-                .displayName(user.getDisplayName())
-                .avatarUrl(user.getAvatarUrl())
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .tokenType("Bearer")
-                .expiresIn(appProperties.getJwt().getExpirationMs() / 1000)
+                .user(AuthResponse.UserDto.builder()
+                        .id(user.getId())
+                        .email(user.getEmail())
+                        .name(user.getDisplayName())
+                        .avatarUrl(user.getAvatarUrl())
+                        .provider(user.getAuthProvider().name().toLowerCase())
+                        .emailVerified(user.isEmailVerified())
+                        .createdAt(user.getCreatedAt() != null ? user.getCreatedAt().toString() : null)
+                        .updatedAt(user.getUpdatedAt() != null ? user.getUpdatedAt().toString() : null)
+                        .build())
+                .tokens(AuthResponse.TokensDto.builder()
+                        .accessToken(accessToken)
+                        .refreshToken(refreshToken)  // populated here, stripped by controller before response
+                        .tokenType("Bearer")
+                        .expiresAt(expiresAt)
+                        .build())
                 .build();
     }
 }

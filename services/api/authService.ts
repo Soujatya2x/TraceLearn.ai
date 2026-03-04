@@ -1,17 +1,12 @@
 // ============================================================
 // TraceLearn.ai — Auth Service
-// All backend calls go through the shared Axios client so the
-// auth token interceptor (services/api/client.ts) handles
-// Authorization headers automatically.
 // ============================================================
 
 import apiClient from './client'
 import { AUTH_ENDPOINTS } from './auth.endpoints'
 import type {
+  AuthProvider,
   AuthResponse,
-  OAuthCallbackRequest,
-  OAuthUrlResponse,
-  RefreshTokenRequest,
   RefreshTokenResponse,
   SignInEmailRequest,
   SignUpEmailRequest,
@@ -19,115 +14,149 @@ import type {
 } from '@/types/auth'
 import type { ApiResponse } from '@/types'
 
-// ─── Token helpers (localStorage keys) ───────────────────────
-// These match the key already referenced in client.ts so the
-// Axios interceptor picks up the access token automatically.
+// ─── Token storage — access token in memory only ─────────────
+//
+// HIGH-3 FIX: The refresh token is no longer stored in JavaScript at all.
+// The backend sets it as an httpOnly cookie on every signin/signup/refresh response.
+// The browser sends it automatically on requests to /api/v1/auth/* — invisible to JS.
+//
+// Access token: module-level variable — survives navigation within the SPA,
+//               lost on hard refresh (browser tab close, F5, direct URL).
+//               On page load, initAuth() calls refreshAccessToken() which uses
+//               the httpOnly cookie to silently re-issue a new access token.
+//
+// Why not sessionStorage for the access token?
+//   sessionStorage is also XSS-readable. Memory is the safest option for access
+//   tokens in a browser — the window being open is the only lifetime requirement.
 
-const KEYS = {
-  ACCESS:  'tl_auth_token',
-  REFRESH: 'tl_refresh_token',
-  EXPIRES: 'tl_token_expires',
-} as const
+let _accessToken: string | null = null
+let _expiresAt: number = 0
 
 export const tokenStorage = {
-  set(accessToken: string, refreshToken: string, expiresAt: number) {
-    if (typeof window === 'undefined') return
-    localStorage.setItem(KEYS.ACCESS,  accessToken)
-    localStorage.setItem(KEYS.REFRESH, refreshToken)
-    localStorage.setItem(KEYS.EXPIRES, String(expiresAt))
+  setAccess(accessToken: string, expiresAt: number) {
+    _accessToken = accessToken
+    _expiresAt   = expiresAt
   },
-  getAccess():  string | null { return typeof window !== 'undefined' ? localStorage.getItem(KEYS.ACCESS)  : null },
-  getRefresh(): string | null { return typeof window !== 'undefined' ? localStorage.getItem(KEYS.REFRESH) : null },
-  getExpires(): number { return Number(typeof window !== 'undefined' ? localStorage.getItem(KEYS.EXPIRES) : 0) },
+  getAccess(): string | null {
+    return _accessToken
+  },
+  getExpires(): number {
+    return _expiresAt
+  },
   clear() {
-    if (typeof window === 'undefined') return
-    localStorage.removeItem(KEYS.ACCESS)
-    localStorage.removeItem(KEYS.REFRESH)
-    localStorage.removeItem(KEYS.EXPIRES)
+    _accessToken = null
+    _expiresAt   = 0
+    // Refresh token cookie is cleared server-side by POST /auth/signout.
+    // We cannot touch it here — that's the whole point of httpOnly.
   },
   isExpired(): boolean {
-    const exp = tokenStorage.getExpires()
-    return !exp || Date.now() >= exp - 60_000 // 60s buffer
+    return !_expiresAt || Date.now() >= _expiresAt - 60_000 // 60s buffer
   },
 }
 
 // ─── Email / password ─────────────────────────────────────────
 
 export async function signInWithEmail(payload: SignInEmailRequest): Promise<AuthResponse> {
-  const res = await apiClient.post<ApiResponse<AuthResponse>>(AUTH_ENDPOINTS.SIGN_IN, payload)
+  // withCredentials=true is required so the browser accepts the httpOnly
+  // Set-Cookie header for the refresh token on this cross-origin request.
+  const res = await apiClient.post<ApiResponse<AuthResponse>>(
+    AUTH_ENDPOINTS.SIGN_IN,
+    payload,
+    { withCredentials: true },
+  )
   const auth = res.data.data
-  tokenStorage.set(auth.tokens.accessToken, auth.tokens.refreshToken, auth.tokens.expiresAt)
+  // Backend no longer returns refreshToken in the body — it's in the httpOnly cookie.
+  // We only store the access token in memory.
+  tokenStorage.setAccess(auth.tokens.accessToken, auth.tokens.expiresAt)
   return auth
 }
 
 export async function signUpWithEmail(payload: SignUpEmailRequest): Promise<AuthResponse> {
-  const res = await apiClient.post<ApiResponse<AuthResponse>>(AUTH_ENDPOINTS.SIGN_UP, payload)
+  const res = await apiClient.post<ApiResponse<AuthResponse>>(
+    AUTH_ENDPOINTS.SIGN_UP,
+    payload,
+    { withCredentials: true },
+  )
   const auth = res.data.data
-  tokenStorage.set(auth.tokens.accessToken, auth.tokens.refreshToken, auth.tokens.expiresAt)
+  tokenStorage.setAccess(auth.tokens.accessToken, auth.tokens.expiresAt)
   return auth
 }
 
 // ─── OAuth ────────────────────────────────────────────────────
-
-/**
- * Step 1 — ask the backend for the provider redirect URL.
- * Frontend then does `window.location.href = url` to start the OAuth flow.
- */
-export async function getOAuthUrl(
-  provider: 'google' | 'github',
-): Promise<OAuthUrlResponse> {
-  const res = await apiClient.get<ApiResponse<OAuthUrlResponse>>(
-    AUTH_ENDPOINTS.OAUTH_URL(provider),
-  )
-  return res.data.data
-}
-
-/**
- * Step 2 — called from /auth/callback after the provider redirects back.
- * Exchanges `code` + `state` for tokens.
- */
-export async function handleOAuthCallback(
-  payload: OAuthCallbackRequest,
-): Promise<AuthResponse> {
-  const res = await apiClient.post<ApiResponse<AuthResponse>>(
-    AUTH_ENDPOINTS.OAUTH_CALLBACK(payload.provider),
-    { code: payload.code, state: payload.state },
-  )
-  const auth = res.data.data
-  tokenStorage.set(auth.tokens.accessToken, auth.tokens.refreshToken, auth.tokens.expiresAt)
-  return auth
-}
+//
+// Spring Security handles the ENTIRE OAuth2 flow internally.
+// No API call needed here — see useAuthStore.signInWithOAuth.
+//
+//   Step 1  — Browser navigates to: {BACKEND}/oauth2/authorization/{provider}
+//   Step 2  — Spring redirects user to Google/GitHub consent screen
+//   Step 3  — Provider redirects to: {BACKEND}/api/v1/auth/oauth2/callback/{provider}
+//   Step 4  — Spring calls CustomOAuth2UserService (upserts user in DB)
+//   Step 5  — Spring calls OAuth2AuthenticationSuccessHandler which:
+//             • sets httpOnly refresh token cookie on the response
+//             • redirects browser to: {FRONTEND}/auth/callback?token=<accessJWT>
+//             • NOTE: refresh_token is NO LONGER in the query param (it's in the cookie)
+//   Step 6  — /auth/callback reads access token only, calls getCurrentUser(), stores user
 
 // ─── Token refresh ────────────────────────────────────────────
+//
+// No body payload needed — the browser automatically sends the httpOnly
+// tl_refresh cookie with this request because the path is /api/v1/auth/*.
+// The backend reads the cookie value and returns a new access token.
+//
+// withCredentials=true tells the browser to include cookies on this
+// cross-origin request (frontend on :3000, backend on :8080 in dev).
 
 export async function refreshAccessToken(): Promise<RefreshTokenResponse> {
-  const refreshToken = tokenStorage.getRefresh()
-  if (!refreshToken) throw new Error('No refresh token available')
-
-  const payload: RefreshTokenRequest = { refreshToken }
   const res = await apiClient.post<ApiResponse<RefreshTokenResponse>>(
     AUTH_ENDPOINTS.REFRESH,
-    payload,
+    {},                        // empty body — token comes from the cookie
+    { withCredentials: true }, // required to send the httpOnly cookie cross-origin
   )
   const { tokens } = res.data.data
-  tokenStorage.set(tokens.accessToken, tokens.refreshToken, tokens.expiresAt)
+  // Backend rotates the refresh cookie automatically — we only update access token.
+  tokenStorage.setAccess(tokens.accessToken, tokens.expiresAt)
   return res.data.data
 }
 
 // ─── Current user ─────────────────────────────────────────────
+//
+// GET /auth/me returns AuthResponse.UserDto (not the full AuthResponse).
+// Shape: { id, email, name, avatarUrl, provider, emailVerified, createdAt, updatedAt }
+//
+// Provider mapping: backend sends "local" | "google" | "github" (lowercase).
+// Frontend AuthProvider type is 'email' | 'google' | 'github'.
+// We map "local" → "email" here so the rest of the app never sees "local".
+
+interface UserDto {
+  id: string
+  email: string
+  name: string
+  avatarUrl?: string
+  provider: string
+  emailVerified: boolean
+  createdAt: string
+  updatedAt: string
+}
 
 export async function getCurrentUser(): Promise<User> {
-  const res = await apiClient.get<ApiResponse<User>>(AUTH_ENDPOINTS.ME)
-  return res.data.data
+  const res = await apiClient.get<ApiResponse<UserDto>>(AUTH_ENDPOINTS.ME)
+  const dto = res.data.data
+  return {
+    ...dto,
+    provider: (dto.provider === 'local' ? 'email' : dto.provider) as AuthProvider,
+  }
 }
 
 // ─── Sign out ─────────────────────────────────────────────────
 
 export async function signOut(): Promise<void> {
   try {
-    await apiClient.post(AUTH_ENDPOINTS.SIGN_OUT)
+    // withCredentials=true so the browser sends the refresh cookie —
+    // the backend expires it (MaxAge=0) to prevent future use.
+    await apiClient.post(AUTH_ENDPOINTS.SIGN_OUT, {}, { withCredentials: true })
   } finally {
-    // Always clear local state even if the request fails
+    // Clear the in-memory access token regardless of whether the
+    // backend call succeeded. The httpOnly cookie is cleared server-side.
     tokenStorage.clear()
   }
 }

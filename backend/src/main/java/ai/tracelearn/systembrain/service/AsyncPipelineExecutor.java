@@ -57,6 +57,7 @@ public class AsyncPipelineExecutor {
     private final SandboxGateway sandboxGateway;       // sandboxExecutor pool
     private final AnalysisGateway analysisGateway;     // analysisExecutor pool
     private final ObjectMapper objectMapper;
+    private final WorkspaceService workspaceService;   // MEDIUM-4: read code/logs from disk
 
     // ─── 1. Initial Analysis Pipeline (LIVE_EXECUTION) ───────────────────────
 
@@ -146,7 +147,7 @@ public class AsyncPipelineExecutor {
             AiAnalyzeRequest analyzeReq = buildLogAnalysisRequest(session, request);
 
             try {
-                AiAnalyzeResponse aiResponse = analysisGateway.analyzeCode(analyzeReq).get();
+                AiAnalyzeResponse aiResponse = analysisGateway.analyzeCodeReactive(analyzeReq).get();
 
                 AiAnalysis analysis = analysisService.saveAnalysis(session, aiResponse);
 
@@ -245,6 +246,10 @@ public class AsyncPipelineExecutor {
                                     .build())
                             .collect(Collectors.toList());
 
+            // MEDIUM-4: read original code/logs from workspace instead of session entity
+            String originalCode = workspaceService.readCodeFile(session.getWorkspacePath(), session.getLanguage());
+            String originalLogs = workspaceService.readLogFile(session.getWorkspacePath());
+
             AiAnalyzeRequest analyzeReq = AiAnalyzeRequest.builder()
                     .sessionId(sessionId.toString())
                     .code(fixedCode)
@@ -252,14 +257,14 @@ public class AsyncPipelineExecutor {
                     .stderr(attempt.getStderr())
                     .stdout(attempt.getStdout())
                     .exitCode(attempt.getExitCode())
-                    .originalCode(session.getOriginalCode())
-                    .originalLogs(session.getOriginalLogs())
+                    .originalCode(originalCode)
+                    .originalLogs(originalLogs)
                     .attemptNumber(attemptNumber)
                     .previousAttempts(previousAttempts)
                     .executionMode(ExecutionMode.LIVE_EXECUTION.name())
                     .build();
 
-            AiAnalyzeResponse aiResponse = analysisGateway.analyzeCode(analyzeReq).get();
+            AiAnalyzeResponse aiResponse = analysisGateway.analyzeCodeReactive(analyzeReq).get();
             AiAnalysis updatedAnalysis = analysisService.saveAnalysis(session, aiResponse);
 
             sessionService.updateSessionStatus(sessionId, SessionStatus.ANALYZED);
@@ -288,10 +293,13 @@ public class AsyncPipelineExecutor {
                             a.getLearningSummary() != null ? a.getLearningSummary() : ""))
                     .orElse("");
 
+            // MEDIUM-4: read original logs from workspace instead of session entity
+            String pipelineLogContent = workspaceService.readLogFile(session.getWorkspacePath());
+
             AiChatRequest chatReq = AiChatRequest.builder()
                     .sessionId(sessionId.toString())
                     .userMessage(userMessage)
-                    .errorContext(session.getOriginalLogs())
+                    .errorContext(pipelineLogContent)
                     .analysisSummary(analysisSummary)
                     .chatHistory(history.stream()
                             .map(m -> AiChatRequest.ChatHistoryEntry.builder()
@@ -301,7 +309,7 @@ public class AsyncPipelineExecutor {
                             .collect(Collectors.toList()))
                     .build();
 
-            AiChatResponse aiResponse = analysisGateway.chat(chatReq).get();
+            AiChatResponse aiResponse = analysisGateway.chatReactive(chatReq).get();
             ChatMessage assistantMsg = chatService.saveAssistantMessage(session, aiResponse.getReply());
             notificationService.notifyChatReply(sessionId, assistantMsg);
 
@@ -327,9 +335,12 @@ public class AsyncPipelineExecutor {
             artifactService.createPending(session);
             notificationService.notifyArtifactStatus(sessionId, ArtifactStatus.GENERATING.name());
 
+            // MEDIUM-4: read original code from workspace instead of session entity
+            String artifactCode = workspaceService.readCodeFile(session.getWorkspacePath(), session.getLanguage());
+
             AiArtifactsRequest request = AiArtifactsRequest.builder()
                     .sessionId(sessionId.toString())
-                    .code(session.getOriginalCode())
+                    .code(artifactCode)
                     .explanation(analysis.getExplanation())
                     .fixedCode(analysis.getFixedCode())
                     .learningSummary(analysis.getLearningSummary())
@@ -340,7 +351,7 @@ public class AsyncPipelineExecutor {
                     .learningResources(deserializeLearningResources(analysis.getLearningResources(), sessionId))
                     .build();
 
-            AiArtifactsResponse response = analysisGateway.generateArtifacts(request).get();
+            AiArtifactsResponse response = analysisGateway.generateArtifactsReactive(request).get();
             artifactService.saveArtifacts(session, response);
 
             notificationService.notifyArtifactStatus(sessionId, ArtifactStatus.COMPLETED.name());
@@ -368,7 +379,7 @@ public class AsyncPipelineExecutor {
 
         try {
             AiAnalyzeRequest analyzeReq = buildLiveExecutionRequest(session, attempt, request);
-            AiAnalyzeResponse aiResponse = analysisGateway.analyzeCode(analyzeReq).get();
+            AiAnalyzeResponse aiResponse = analysisGateway.analyzeCodeReactive(analyzeReq).get();
 
             AiAnalysis analysis = analysisService.saveAnalysis(session, aiResponse);
 

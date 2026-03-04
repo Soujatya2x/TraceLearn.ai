@@ -78,7 +78,9 @@ export const useAppStore = create<AppState>()(
           set({
             currentSessionId:  null,
             currentSession:    null,
-            userId:            null,
+            // LOW-2 FIX: userId intentionally NOT cleared — it is auth state owned by
+            // useAuthStore, not workspace state. Clearing it here caused roadmap queries
+            // to fail with userId=null between resetWorkspace() and the next re-render.
             analysisStatus:    'idle',
             code:              INITIAL_CODE,
             logFile:           null,

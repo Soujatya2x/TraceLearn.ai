@@ -66,8 +66,12 @@ class DockerRunner:
           read_only=True                   → Container filesystem is read-only
           security_opt=no-new-privileges   → No privilege escalation inside container
           cap_drop=ALL                     → Zero Linux capabilities granted
-          tmpfs /tmp                       → 64MB RAM disk for compiled language temp files
-                                             noexec = binaries written here cannot run
+          tmpfs /tmp                       → 32MB RAM disk for temp files (interpreted languages)
+                                             noexec + nosuid = full restriction for Python/Node
+          tmpfs /build                     → 64MB RAM disk for compiled language output
+                                             nosuid only — binaries here MUST be executable
+                                             Java .class files, Go binary, Rust binary all land here
+                                             Isolated from /tmp so /tmp stays fully restricted
           remove=False                     → We remove manually after reading logs
         """
         self.ensure_image(image)
@@ -96,7 +100,23 @@ class DockerRunner:
             read_only=True,
             security_opt=["no-new-privileges"],
             cap_drop=["ALL"],
-            tmpfs={"/tmp": "size=64m,noexec,nosuid"},
+            tmpfs={
+                # MEDIUM-8 FIX: Two-mount strategy.
+                #
+                # /tmp  — small, fully restricted. Python/Node temp writes land here.
+                #         noexec: nothing written here can be executed (XSS/RCE hardening).
+                #         nosuid: no setuid binaries.
+                #
+                # /build — compilation output for Java, Go, Rust.
+                #         nosuid only — binaries MUST be executable here.
+                #         Java: javac writes .class files → java reads from /build
+                #         Go:   go run compiles to /build/main → executes from /build
+                #         Rust: rustc -o /build/main → /build/main is executed
+                #         64MB is generous for a single-file program binary.
+                #         noexec intentionally absent — that's the whole point of this mount.
+                "/tmp":   "size=32m,noexec,nosuid",
+                "/build": "size=64m,nosuid",
+            },
             remove=False,
         )
 
