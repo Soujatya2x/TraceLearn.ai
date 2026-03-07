@@ -22,25 +22,15 @@ public class SessionService {
 
     private final SessionRepository sessionRepository;
     private final SessionMapper sessionMapper;
+    private final WorkspaceService workspaceService;
 
-    /**
-     * Create a new session.
-     *
-     * executionMode and frameworkHint are set by ExecutionModeDetector in
-     * OrchestrationService before this is called. They are persisted here
-     * so the async pipeline can read them without re-running detection.
-     *
-     * @param executionMode  LIVE_EXECUTION or LOG_ANALYSIS (never null)
-     * @param frameworkHint  "springboot" / "fastapi" / null for LIVE_EXECUTION
-     */
     @Transactional
     public Session createSession(User user, String language, String workspacePath,
                                   String originalFilename,
                                   ExecutionMode executionMode,
                                   String frameworkHint) {
-        // MEDIUM-4 FIX: originalCode and originalLogs are no longer persisted to the DB.
+        // originalCode and originalLogs are no longer persisted to the DB (V15 migration).
         // They are stored on disk in the workspace (workspacePath/main.{ext} and logs.txt).
-        // Use WorkspaceService.readCodeFile() / readLogFile() when needed downstream.
         Session session = Session.builder()
                 .user(user)
                 .language(language.toLowerCase())
@@ -58,38 +48,46 @@ public class SessionService {
         return session;
     }
 
-    /**
-     * Load a single session with executionAttempts and aiAnalysis eagerly fetched.
-     * Uses JOIN FETCH — one query instead of 1 + N lazy loads.
-     * Use this wherever toDetailResponse() will be called.
-     */
     @Transactional(readOnly = true)
     public Session getSessionEntity(UUID sessionId) {
         return sessionRepository.findByIdWithDetails(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Session", "id", sessionId.toString()));
     }
 
-    /**
-     * Load a single session WITHOUT collections — for status/orchestration use
-     * where aiAnalysis and executionAttempts are not needed.
-     * Avoids JOIN FETCH overhead when only scalar fields are accessed.
-     */
     @Transactional(readOnly = true)
     public Session getSessionEntityLean(UUID sessionId) {
         return sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Session", "id", sessionId.toString()));
     }
 
+    /**
+     * GET /api/v1/session/{sessionId}
+     *
+     * MapStruct maps all DB-backed fields automatically. originalCode / originalLogs
+     * are NOT in the DB (removed in V15 migration) — they live on disk at workspacePath.
+     * We read them here and set them on the response after MapStruct runs.
+     */
     @Transactional(readOnly = true)
     public SessionDetailResponse getSessionDetailResponse(UUID sessionId) {
         Session session = getSessionEntity(sessionId);
-        return sessionMapper.toDetailResponse(session);
+        SessionDetailResponse response = sessionMapper.toDetailResponse(session);
+
+        if (session.getWorkspacePath() != null) {
+            String code = workspaceService.readCodeFile(
+                    session.getWorkspacePath(), session.getLanguage());
+            response.setOriginalCode(code);
+
+            String logs = workspaceService.readLogFile(session.getWorkspacePath());
+            if (logs != null && !logs.isBlank()) {
+                response.setOriginalLogs(logs);
+            }
+        } else {
+            log.warn("Session {} has no workspacePath — originalCode will be null", sessionId);
+        }
+
+        return response;
     }
 
-    /**
-     * Paginated list — maps to SessionStatusResponse (scalar columns only).
-     * findSummariesByUserId loads ONLY Session rows — no collection joins.
-     */
     @Transactional(readOnly = true)
     public Page<SessionStatusResponse> getUserSessions(UUID userId, Pageable pageable) {
         return sessionRepository.findSummariesByUserId(userId, pageable)

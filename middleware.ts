@@ -7,6 +7,30 @@ export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
   const isAuthRoute = pathname.startsWith("/auth")
+  const isApiRoute  = pathname.startsWith("/api")
+
+  // ── API route protection ────────────────────────────────────────────────
+  // Guard any future app/api/ routes against cross-origin requests.
+  // All current API traffic goes to Spring Boot — this is a forward-looking
+  // safeguard for any Next.js API routes added later.
+  if (isApiRoute) {
+    const origin  = req.headers.get("origin")
+    const host    = req.headers.get("host")
+    const allowed = process.env.NEXT_PUBLIC_APP_URL ?? `https://${host}`
+
+    // Non-browser requests (curl, server-to-server) have no Origin header — allow them.
+    // Browser requests must originate from the same host.
+    if (origin && origin !== allowed) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    // API routes also require an active session
+    if (!refreshCookie) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    return NextResponse.next()
+  }
 
   // /auth/callback is the OAuth2 landing page — it arrives with no cookie yet
   // (the cookie is set by the backend redirect, but the browser may not have
@@ -35,7 +59,13 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/",
-    "/auth/:path*"
-  ]
+    '/',
+    '/explanation/:path*',
+    '/chat/:path*',
+    '/validation/:path*',
+    '/artifacts/:path*',
+    '/roadmap/:path*',
+    '/auth/:path*',
+    '/api/:path*',       // protect any future Next.js API routes
+  ],
 }

@@ -14,6 +14,7 @@ import { useFallback } from '@/hooks/useFallback'
 import { useAppStore } from '@/store/useAppStore'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/hooks/useAnalysis'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { cn } from '@/lib/utils'
 import type { ChatSession } from '@/types'
 
@@ -165,22 +166,24 @@ export default function ChatPage() {
 
         <div className="flex-1 overflow-y-auto scrollbar-thin min-h-0">
           <div className="mx-auto max-w-4xl px-5 pb-36">
-            <ConversationCard
-              errorType={displayData.errorType}
-              errorContext={displayData.errorContext}
-              sessionId={currentSessionId ?? displayData.sessionId}
-              isPreview={isPreview}
-              isConnected={isConnected}
-            />
+            <ErrorBoundary label="conversation header">
+              <ConversationCard
+                errorType={displayData.errorType}
+                errorContext={displayData.errorContext}
+                sessionId={currentSessionId ?? displayData.sessionId}
+                isPreview={isPreview}
+                isConnected={isConnected}
+              />
+            </ErrorBoundary>
             <div className="space-y-5">
               {isLoading ? (
                 <div className="space-y-4"><SkeletonCard /><SkeletonCard /></div>
               ) : (
-                <>
+                <ErrorBoundary label="messages">
                   {displayData.messages.map((msg) => <ChatMessage key={msg.id} message={msg} />)}
                   <AnimatePresence>{isTyping && <TypingIndicator />}</AnimatePresence>
                   <div ref={messagesEndRef} />
-                </>
+                </ErrorBoundary>
               )}
             </div>
           </div>

@@ -71,15 +71,20 @@ export function useAnalyzeCode() {
 // ─── Get Session (with polling + status sync) ─────────────────
 
 export function useSession(sessionId: string | null) {
-  const { setAnalysisStatus, setCurrentSession, sessionViewed } = useAppStore()
+  const { setAnalysisStatus, setCurrentSession, sessionViewed, analysisStatus } = useAppStore()
 
   const query = useQuery({
     queryKey: queryKeys.session(sessionId ?? ''),
     queryFn: () => getSession(sessionId!),
-    enabled: !!sessionId,
+    // Disable polling when user has already viewed results and no new analysis
+    // is in-flight — avoids hammering the backend on the old sessionId.
+    enabled: !!sessionId && !(sessionViewed && analysisStatus === 'idle'),
     refetchInterval: (query) => {
       const status = (query.state.data as any)?.status
       if (TERMINAL_STATUSES.includes(status)) return false
+      // Stop polling after 5 minutes regardless of status (handles hung ANALYZING)
+      const fetchedAt = query.state.dataUpdatedAt
+      if (fetchedAt && Date.now() - fetchedAt > 5 * 60 * 1000) return false
       return 3000
     },
   })
@@ -108,13 +113,12 @@ export function useErrorExplanation(sessionId: string | null) {
     queryFn: () => getErrorExplanation(sessionId!),
     enabled: !!sessionId,
     staleTime: 0,
-    refetchOnMount: true,
+    gcTime: 0,                  // don't garbage collect between navigations
+    refetchOnMount: 'always',   // always refetch when component mounts
   })
 
   return {
     ...query,
-    // isPending covers the window between "query enabled" and "first fetch started"
-    // which is where mock data was incorrectly shown before
     isWaitingForData: !!sessionId && query.isPending,
   }
 }

@@ -94,13 +94,13 @@ export const useAppStore = create<AppState>()(
       {
         name: "tracelearn-storage",
         partialize: (state) => ({
-          theme:            state.theme,
-          language:         state.language,
-          currentSessionId: state.currentSessionId,
-          sessionViewed:    state.sessionViewed,
+          theme:    state.theme,
+          language: state.language,
         }),
       },
     ),
     { name: "TraceLearnStore" },
   ),
 );
+// currentSessionId: state.currentSessionId,
+// sessionViewed:    state.sessionViewed,

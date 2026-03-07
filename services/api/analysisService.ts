@@ -180,10 +180,10 @@ function mapAnalysisToErrorExplanation(
 
   return {
     sessionId,
-    errorType: analysis.errorType ?? 'UnknownError',
+    errorType:   analysis.errorType   ?? (analysis as any).errorDetail?.errorType ?? 'UnknownError',
     errorMessage: analysis.explanation ?? '',
-    file: analysis.errorFile ?? 'unknown',
-    lineNumber: analysis.errorLine ?? 0,
+    file:        analysis.errorFile   ?? (analysis as any).errorDetail?.errorFile ?? 'unknown',
+    lineNumber:  analysis.errorLine   ?? (analysis as any).errorDetail?.errorLine ?? 0,
     stackTrace: stackTraceLines,
     whyItHappened: analysis.whyItHappened ?? '',
     conceptBehindError,

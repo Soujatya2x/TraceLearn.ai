@@ -166,7 +166,6 @@ export function AnalyzeButton({ status, onClick, disabled }: AnalyzeButtonProps)
         // navigate anyway, skeleton will show then retry
       } finally {
         useAppStore.getState().setSessionViewed(true)
-        // ← REMOVE setAnalysisStatus('idle') from here — don't clear before navigation
         router.push('/explanation')
       }
     }

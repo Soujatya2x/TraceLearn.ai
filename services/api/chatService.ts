@@ -21,10 +21,10 @@ export async function getChatSession(sessionId: string): Promise<ChatSession> {
     messages: (raw.messages ?? raw.chatHistory ?? []).map((m: any, i: number) => ({
       id:        m.id ?? `msg-${i}`,
       sessionId: raw.sessionId ?? sessionId,
-      role:      (m.role ?? 'assistant').toLowerCase(),   // ← normalize USER → user
+      role:      (m.role ?? 'assistant').toLowerCase(),
       content:   cleanString(m.content ?? m.message ?? m.reply),
       timestamp: m.timestamp ?? m.createdAt ?? new Date().toISOString(),
-    })),
+    })).filter((m: { content: string }) => m.content.length > 0),
   }
 }
 

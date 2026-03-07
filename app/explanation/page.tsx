@@ -11,6 +11,7 @@ import { SkeletonCard, SkeletonText } from '@/components/ui/SkeletonCard'
 import { PreviewBadgeInline } from '@/components/ui/PreviewBadge'
 import { useErrorExplanation } from '@/hooks/useAnalysis'
 import { useAppStore } from '@/store/useAppStore'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { staggerContainer } from '@/animations/variants'
 import { cn } from '@/lib/utils'
 import type { ErrorExplanation } from '@/types'
@@ -139,11 +140,16 @@ export default function ExplanationPage() {
     }
   }, [])
 
-  // Auto-refetch once on mount if session exists but data not yet in cache
+  // Auto-refetch on mount — use a small delay to ensure component is fully mounted.
+  // Don't check isLoading/data here: on a disabled query both are false/undefined,
+  // so a plain guard would pass but refetch() would be a no-op. The timer ensures
+  // the query is enabled (sessionId is set) before refetch fires.
   useEffect(() => {
-    if (currentSessionId && !explanationQuery.data && !explanationQuery.isLoading) {
+    if (!currentSessionId) return
+    const timer = setTimeout(() => {
       explanationQuery.refetch()
-    }
+    }, 100)
+    return () => clearTimeout(timer)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSessionId])
 
@@ -233,19 +239,25 @@ export default function ExplanationPage() {
             className="space-y-8"
           >
             <section id="error" aria-label="Error details">
-              <ErrorTopSection explanation={displayData} />
+              <ErrorBoundary label="error details">
+                <ErrorTopSection explanation={displayData} />
+              </ErrorBoundary>
             </section>
 
             <SectionDivider />
 
             <section id="analysis" aria-label="AI analysis">
-              <AIExplanationSection explanation={displayData} />
+              <ErrorBoundary label="AI analysis">
+                <AIExplanationSection explanation={displayData} />
+              </ErrorBoundary>
             </section>
 
             <SectionDivider />
 
             <section id="resources" aria-label="Learning resources">
-              <LearningResourcesSection explanation={displayData} />
+              <ErrorBoundary label="learning resources">
+                <LearningResourcesSection explanation={displayData} />
+              </ErrorBoundary>
             </section>
           </motion.div>
         )}

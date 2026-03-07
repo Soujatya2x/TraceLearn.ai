@@ -12,6 +12,7 @@ import { PreviewBadgeInline } from '@/components/ui/PreviewBadge'
 import { useValidationResult, useRetryExecution } from '@/hooks/useAnalysis'
 import { useFallback } from '@/hooks/useFallback'
 import { useAppStore } from '@/store/useAppStore'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { staggerContainer, staggerItem } from '@/animations/variants'
 import { cn } from '@/lib/utils'
 import type { ValidationResult } from '@/types'
@@ -234,48 +235,54 @@ export default function ValidationPage() {
 
             {/* ── Side-by-side code panels ─────────────────────── */}
             <motion.div variants={staggerItem}>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
-                <CodePanel title="Original Code" subtitle="With error" code={d.originalCode} accentColor="destructive" highlightLines={[5]} />
-                <CodePanel title="Fixed Code"    subtitle="With input validation added" code={d.fixedCode} accentColor="success" highlightLines={[2, 3, 4]} />
-              </div>
+              <ErrorBoundary label="code comparison">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+                  <CodePanel title="Original Code" subtitle="With error" code={d.originalCode} accentColor="destructive" highlightLines={[5]} />
+                  <CodePanel title="Fixed Code"    subtitle="With input validation added" code={d.fixedCode} accentColor="success" highlightLines={[2, 3, 4]} />
+                </div>
+              </ErrorBoundary>
             </motion.div>
 
             {/* ── Changes summary ──────────────────────────────── */}
             <motion.div variants={staggerItem}>
-              <div className="bg-card border border-border rounded-xl p-5">
-                <h2 className="text-sm font-semibold text-foreground mb-3">Changes Summary</h2>
-                <div className="flex flex-col gap-2">
-                  {CHANGE_SUMMARY.map((c) => <ChangeSummaryChip key={c.id} {...c} />)}
+              <ErrorBoundary label="changes summary">
+                <div className="bg-card border border-border rounded-xl p-5">
+                  <h2 className="text-sm font-semibold text-foreground mb-3">Changes Summary</h2>
+                  <div className="flex flex-col gap-2">
+                    {CHANGE_SUMMARY.map((c) => <ChangeSummaryChip key={c.id} {...c} />)}
+                  </div>
                 </div>
-              </div>
+              </ErrorBoundary>
             </motion.div>
 
             {/* ── Fix explanation ──────────────────────────────── */}
             <motion.div variants={staggerItem}>
-              <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-                <h2 className="text-sm font-semibold text-foreground">Fix Explanation</h2>
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <Shield className="w-3.5 h-3.5 text-primary" />
-                    <p className="text-xs font-semibold text-foreground">What Changed</p>
+              <ErrorBoundary label="fix explanation">
+                <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+                  <h2 className="text-sm font-semibold text-foreground">Fix Explanation</h2>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <Shield className="w-3.5 h-3.5 text-primary" />
+                      <p className="text-xs font-semibold text-foreground">What Changed</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground leading-relaxed pl-5">{d.whatChanged}</p>
                   </div>
-                  <p className="text-sm text-muted-foreground leading-relaxed pl-5">{d.whatChanged}</p>
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <Lightbulb className="w-3.5 h-3.5 text-warning" />
-                    <p className="text-xs font-semibold text-foreground">Why This Works</p>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <Lightbulb className="w-3.5 h-3.5 text-warning" />
+                      <p className="text-xs font-semibold text-foreground">Why This Works</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground leading-relaxed pl-5">{d.whyItWorks}</p>
                   </div>
-                  <p className="text-sm text-muted-foreground leading-relaxed pl-5">{d.whyItWorks}</p>
-                </div>
-                <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 flex items-start gap-3">
-                  <MessageSquare className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs font-semibold text-primary mb-0.5">Reinforced Concept</p>
-                    <p className="text-xs text-foreground/80 leading-relaxed">{d.reinforcedConcept}</p>
+                  <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 flex items-start gap-3">
+                    <MessageSquare className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-primary mb-0.5">Reinforced Concept</p>
+                      <p className="text-xs text-foreground/80 leading-relaxed">{d.reinforcedConcept}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </ErrorBoundary>
             </motion.div>
 
             {/* ── Execution status bar ─────────────────────────── */}

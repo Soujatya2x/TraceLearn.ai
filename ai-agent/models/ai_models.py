@@ -118,17 +118,17 @@ class ArtifactsLearningResource(BaseModel):
     type: str
 
 class ArtifactsRequest(BaseModel):
-    #model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
     sessionId: str
-    code: str
-    explanation: str
-    fixedCode: str
-    learningSummary: str
-    whyItHappened: str
-    conceptBehindError: str
-    stepByStepReasoning: list[str]
-    fixAnalysis: ArtifactsFixAnalysis
-    learningResources: list[ArtifactsLearningResource]
+    code: Optional[str] = ""
+    explanation: Optional[str] = ""
+    fixedCode: Optional[str] = ""
+    learningSummary: Optional[str] = ""
+    whyItHappened: Optional[str] = ""
+    conceptBehindError: Optional[str] = ""
+    stepByStepReasoning: Optional[list[str]] = []
+    fixAnalysis: Optional[ArtifactsFixAnalysis] = None
+    learningResources: Optional[list[ArtifactsLearningResource]] = []
 
 class ArtifactsResponse(BaseModel):
     #model_config = ConfigDict(extra="forbid")
@@ -180,4 +180,4 @@ class RoadmapResponse(BaseModel):
     knowledgeGapAnalysis: list[KnowledgeGap]
     recommendedTopics: list[RecommendedTopic]
     learningPriorities: str
-    conceptMasteryScores: list[ConceptMasteryScore]  # ← changed from dict to list
+    conceptMasteryScores: list[ConceptMasteryScore]
