@@ -36,6 +36,10 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         Map<String, Object> attributes = oAuth2User.getAttributes();
 
         String email = extractEmail(attributes, provider);
+
+        if (email == null || email.isBlank()) {
+            throw new OAuth2AuthenticationException("OAuth provider did not supply a valid email.");
+        }
         String name = extractName(attributes, provider);
         String avatarUrl = extractAvatar(attributes, provider);
         String providerId = extractProviderId(attributes, provider);
@@ -60,13 +64,19 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                     .build();
             user = userRepository.save(user);
         }
-
+        log.info("OAuth2 attributes: {}", attributes);
         return UserPrincipal.create(user, attributes);
     }
 
     private String extractEmail(Map<String, Object> attrs, AuthProvider provider) {
         return switch (provider) {
-            case GOOGLE -> (String) attrs.get("email");
+            case GOOGLE -> {
+                String email = (String) attrs.get("email");
+                if (email == null) {
+                    throw new OAuth2AuthenticationException("Google account did not return email.");
+                }
+                yield email;
+            }
             case GITHUB -> {
                 String email = (String) attrs.get("email");
                 yield email != null ? email : attrs.get("id") + "@github.tracelearn.ai";

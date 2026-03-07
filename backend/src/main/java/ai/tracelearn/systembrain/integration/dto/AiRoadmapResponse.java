@@ -28,29 +28,49 @@ public class AiRoadmapResponse {
     private String learningPriorities;
 
     /** Map of conceptName → masteryScore. Was missing entirely. */
-    private Map<String, Double> conceptMasteryScores;
+    // private Map<String, Double> conceptMasteryScores;
+
+    private List<ConceptMasteryScore> conceptMasteryScores;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ConceptMasteryScore {
+        private String conceptName;
+        private double masteryScore;
+    }
 
     // ── Inner types ───────────────────────────────────────────────────────────
 
-    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class KnowledgeGap {
         private String conceptName;
         private double masteryScore;
-        private String gapLevel;      // "HIGH", "MEDIUM", "LOW"
+        private String gapLevel; // "HIGH", "MEDIUM", "LOW"
         private String description;
     }
 
-    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class TopicRecommendation {
         private String topicName;
         private String description;
-        private String priority;       // "HIGH", "MEDIUM", "LOW"
+        private String priority; // "HIGH", "MEDIUM", "LOW"
         private String estimatedTime;
         /** Was missing — contract includes a resources list per topic. */
         private List<TopicResource> resources;
     }
 
-    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class TopicResource {
         private String title;
         private String url;

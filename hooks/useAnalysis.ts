@@ -1,10 +1,7 @@
-// ============================================================
-// TraceLearn.ai — Analysis Hooks (TanStack Query)
-// ============================================================
-
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import {
   analyzeCode,
   getErrorExplanation,
@@ -15,8 +12,6 @@ import {
 import { useAppStore } from '@/store/useAppStore'
 import type { Language } from '@/types'
 
-// ─── Query Keys ──────────────────────────────────────────────
-
 export const queryKeys = {
   session:     (id: string)     => ['session',     id] as const,
   explanation: (id: string)     => ['explanation', id] as const,
@@ -26,6 +21,20 @@ export const queryKeys = {
   roadmap:     (userId: string) => ['roadmap', userId] as const,
 }
 
+function normalizeStatus(status: string): 'idle' | 'processing' | 'analyzing' | 'validating' | 'completed' | 'failed' {
+  switch (status) {
+    case 'CREATED':
+    case 'EXECUTING':  return 'processing'
+    case 'ANALYZING':  return 'analyzing'
+    case 'ANALYZED':
+    case 'COMPLETED':  return 'completed'
+    case 'ERROR':      return 'failed'
+    default:           return status as any ?? 'idle'
+  }
+}
+
+const TERMINAL_STATUSES = ['ANALYZED', 'COMPLETED', 'ERROR', 'completed', 'failed']
+
 // ─── Analyze Code ────────────────────────────────────────────
 
 export function useAnalyzeCode() {
@@ -34,11 +43,7 @@ export function useAnalyzeCode() {
 
   return useMutation({
     mutationFn: ({
-      code,
-      language,
-      logFile,
-      projectFiles,
-      frameworkType,
+      code, language, logFile, projectFiles, frameworkType,
     }: {
       code: string
       language: Language
@@ -53,7 +58,7 @@ export function useAnalyzeCode() {
 
     onSuccess: (data) => {
       setCurrentSessionId(data.sessionId)
-      setAnalysisStatus(data.status)
+      setAnalysisStatus(normalizeStatus(data.status))
       queryClient.invalidateQueries({ queryKey: ['session', data.sessionId] })
     },
 
@@ -63,30 +68,55 @@ export function useAnalyzeCode() {
   })
 }
 
-// ─── Get Session ─────────────────────────────────────────────
+// ─── Get Session (with polling + status sync) ─────────────────
 
 export function useSession(sessionId: string | null) {
-  return useQuery({
+  const { setAnalysisStatus, setCurrentSession, sessionViewed } = useAppStore()
+
+  const query = useQuery({
     queryKey: queryKeys.session(sessionId ?? ''),
     queryFn: () => getSession(sessionId!),
     enabled: !!sessionId,
     refetchInterval: (query) => {
-      const status = query.state.data?.status
-      if (status === 'completed' || status === 'failed') return false
+      const status = (query.state.data as any)?.status
+      if (TERMINAL_STATUSES.includes(status)) return false
       return 3000
     },
   })
+
+  useEffect(() => {
+    const rawStatus = (query.data as any)?.status
+    if (!rawStatus) return
+    const normalized = normalizeStatus(rawStatus)
+
+    // If the user already viewed results for this session, don't flip the
+    // button back to "View Results" — they're on the workspace to analyze new code.
+    if (sessionViewed && normalized === 'completed') return
+
+    setAnalysisStatus(normalized)
+    if (query.data) setCurrentSession(query.data as any)
+  }, [(query.data as any)?.status, sessionViewed])
+
+  return query
 }
 
 // ─── Error Explanation ───────────────────────────────────────
 
 export function useErrorExplanation(sessionId: string | null) {
-  return useQuery({
+  const query = useQuery({
     queryKey: queryKeys.explanation(sessionId ?? ''),
     queryFn: () => getErrorExplanation(sessionId!),
     enabled: !!sessionId,
-    staleTime: 1000 * 60 * 10,
+    staleTime: 0,
+    refetchOnMount: true,
   })
+
+  return {
+    ...query,
+    // isPending covers the window between "query enabled" and "first fetch started"
+    // which is where mock data was incorrectly shown before
+    isWaitingForData: !!sessionId && query.isPending,
+  }
 }
 
 // ─── Validation Result ───────────────────────────────────────
@@ -108,19 +138,12 @@ export function useRetryExecution() {
 
   return useMutation({
     mutationFn: (sessionId: string) => retryExecution(sessionId),
-
-    onMutate: () => {
-      setAnalysisStatus('processing')
-    },
-
+    onMutate: () => { setAnalysisStatus('processing') },
     onSuccess: (data) => {
-      setAnalysisStatus(data.status)
-      queryClient.invalidateQueries({ queryKey: queryKeys.session(data.sessionId) })
-      queryClient.invalidateQueries({ queryKey: queryKeys.validation(data.sessionId) })
+      setAnalysisStatus(normalizeStatus((data as any).status))
+      queryClient.invalidateQueries({ queryKey: queryKeys.session((data as any).sessionId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.validation((data as any).sessionId) })
     },
-
-    onError: () => {
-      setAnalysisStatus('failed')
-    },
+    onError: () => { setAnalysisStatus('failed') },
   })
 }

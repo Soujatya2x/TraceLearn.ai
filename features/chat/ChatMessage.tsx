@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import type { ChatMessage as ChatMessageType } from '@/types'
 
 function renderContent(content: string) {
+  if (!content) return null
   const parts = content.split(/(```[\s\S]*?```|`[^`]+`)/g)
   return parts.map((part, i) => {
     if (part.startsWith('```') && part.endsWith('```')) {
@@ -49,7 +50,7 @@ function renderContent(content: string) {
 export function ChatMessage({ message }: { message: ChatMessageType }) {
   const [copied, setCopied] = useState(false)
   const [time, setTime]     = useState<string | null>(null)
-  const isUser = message.role === 'user'
+  const isUser = message.role?.toLowerCase() === 'user'
 
   useEffect(() => {
     setTime(new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))

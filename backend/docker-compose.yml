@@ -21,8 +21,8 @@ services:
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
-      - SANDBOX_URL=${SANDBOX_URL:-http://sandbox:8081}
-      - AI_AGENT_URL=${AI_AGENT_URL:-http://ai-agent:8082}
+      - SANDBOX_URL=${SANDBOX_URL:-http://sandbox:8000}
+      - AI_AGENT_URL=${AI_AGENT_URL:-http://ai-agent:8081}
       - S3_BUCKET=${S3_BUCKET:-tracelearn-artifacts}
       - AWS_REGION=${AWS_REGION:-us-east-1}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
@@ -44,7 +44,6 @@ services:
 
   # ── PostgreSQL (local dev) ──
   postgres:
-    image: postgres:16-alpine
     container_name: tracelearn-postgres
     ports:
       - "5432:5432"

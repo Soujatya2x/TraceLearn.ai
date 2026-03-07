@@ -1,38 +1,38 @@
-import { create } from 'zustand'
-import { devtools, persist } from 'zustand/middleware'
-import type { AnalysisStatus, Language, Session } from '@/types'
+import { create } from "zustand";
+import { devtools, persist } from "zustand/middleware";
+import type { AnalysisStatus, Language, Session } from "@/types";
 
-export type Theme = 'light' | 'dark'
+export type Theme = "light" | "dark";
 
 interface AppState {
-  currentSessionId: string | null
-  currentSession: Session | null
-  /** Authenticated user's UUID — set on login, cleared on logout. Used by roadmap hook. */
-  userId: string | null
-  analysisStatus: AnalysisStatus
-  code: string
-  language: Language
-  logFile: File | null
-  projectFiles: File[]
-  /** Set by WorkspaceRightPanel after POST /api/v1/detect. e.g. "springboot" | "fastapi" | null */
-  detectedFramework: string | null
-  isPolling: boolean
-  sidebarOpen: boolean
-  theme: Theme
-  setCurrentSessionId: (id: string | null) => void
-  setCurrentSession: (session: Session | null) => void
-  setUserId: (id: string | null) => void
-  setAnalysisStatus: (status: AnalysisStatus) => void
-  setCode: (code: string) => void
-  setLanguage: (language: Language) => void
-  setLogFile: (file: File | null) => void
-  setProjectFiles: (files: File[]) => void
-  setDetectedFramework: (framework: string | null) => void
-  setIsPolling: (polling: boolean) => void
-  setSidebarOpen: (open: boolean) => void
-  setTheme: (theme: Theme) => void
-  toggleTheme: () => void
-  resetWorkspace: () => void
+  currentSessionId: string | null;
+  currentSession: Session | null;
+  userId: string | null;
+  analysisStatus: AnalysisStatus;
+  sessionViewed: boolean;
+  code: string;
+  language: Language;
+  logFile: File | null;
+  projectFiles: File[];
+  detectedFramework: string | null;
+  isPolling: boolean;
+  sidebarOpen: boolean;
+  theme: Theme;
+  setCurrentSessionId: (id: string | null) => void;
+  setCurrentSession: (session: Session | null) => void;
+  setUserId: (id: string | null) => void;
+  setAnalysisStatus: (status: AnalysisStatus) => void;
+  setSessionViewed: (v: boolean) => void;
+  setCode: (code: string) => void;
+  setLanguage: (language: Language) => void;
+  setLogFile: (file: File | null) => void;
+  setProjectFiles: (files: File[]) => void;
+  setDetectedFramework: (framework: string | null) => void;
+  setIsPolling: (polling: boolean) => void;
+  setSidebarOpen: (open: boolean) => void;
+  setTheme: (theme: Theme) => void;
+  toggleTheme: () => void;
+  resetWorkspace: () => void;
 }
 
 const INITIAL_CODE = `# Paste or type your code here
@@ -42,7 +42,7 @@ def calculate_average(numbers):
 
 result = calculate_average([])
 print(f"Average: {result}")
-`
+`;
 
 export const useAppStore = create<AppState>()(
   devtools(
@@ -51,19 +51,22 @@ export const useAppStore = create<AppState>()(
         currentSessionId:  null,
         currentSession:    null,
         userId:            null,
-        analysisStatus:    'idle',
+        analysisStatus:    "idle",
+        sessionViewed:     false,
         code:              INITIAL_CODE,
-        language:          'python',
+        language:          "python",
         logFile:           null,
         projectFiles:      [],
         detectedFramework: null,
         isPolling:         false,
         sidebarOpen:       true,
-        theme:             'dark',
+        theme:             "dark",
+
         setCurrentSessionId:  (id)        => set({ currentSessionId: id }),
         setCurrentSession:    (session)   => set({ currentSession: session }),
         setUserId:            (id)        => set({ userId: id }),
         setAnalysisStatus:    (status)    => set({ analysisStatus: status }),
+        setSessionViewed:     (v)         => set({ sessionViewed: v }),
         setCode:              (code)      => set({ code }),
         setLanguage:          (language)  => set({ language }),
         setLogFile:           (logFile)   => set({ logFile }),
@@ -73,15 +76,14 @@ export const useAppStore = create<AppState>()(
         setSidebarOpen:       (open)      => set({ sidebarOpen: open }),
         setTheme:             (theme)     => set({ theme }),
         toggleTheme: () =>
-          set({ theme: get().theme === 'light' ? 'dark' : 'light' }),
+          set({ theme: get().theme === "light" ? "dark" : "light" }),
+
         resetWorkspace: () =>
           set({
             currentSessionId:  null,
             currentSession:    null,
-            // LOW-2 FIX: userId intentionally NOT cleared — it is auth state owned by
-            // useAuthStore, not workspace state. Clearing it here caused roadmap queries
-            // to fail with userId=null between resetWorkspace() and the next re-render.
-            analysisStatus:    'idle',
+            analysisStatus:    "idle",
+            sessionViewed:     false,
             code:              INITIAL_CODE,
             logFile:           null,
             projectFiles:      [],
@@ -90,10 +92,15 @@ export const useAppStore = create<AppState>()(
           }),
       }),
       {
-        name: 'tracelearn-storage',
-        partialize: (state) => ({ theme: state.theme, language: state.language }),
+        name: "tracelearn-storage",
+        partialize: (state) => ({
+          theme:            state.theme,
+          language:         state.language,
+          currentSessionId: state.currentSessionId,
+          sessionViewed:    state.sessionViewed,
+        }),
       },
     ),
-    { name: 'TraceLearnStore' },
+    { name: "TraceLearnStore" },
   ),
-)
+);

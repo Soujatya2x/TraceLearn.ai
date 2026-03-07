@@ -1,7 +1,8 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { motion, useScroll, useTransform } from 'framer-motion'
+import { RefreshCw, Zap, AlertTriangle, Brain, BookMarked } from 'lucide-react'
 import { AppShell } from '@/components/layouts/AppShell'
 import { ErrorTopSection } from '@/features/explanation/ErrorTopSection'
 import { AIExplanationSection } from '@/features/explanation/AIExplanationSection'
@@ -9,17 +10,10 @@ import { LearningResourcesSection } from '@/features/explanation/LearningResourc
 import { SkeletonCard, SkeletonText } from '@/components/ui/SkeletonCard'
 import { PreviewBadgeInline } from '@/components/ui/PreviewBadge'
 import { useErrorExplanation } from '@/hooks/useAnalysis'
-import { useFallback } from '@/hooks/useFallback'
 import { useAppStore } from '@/store/useAppStore'
 import { staggerContainer } from '@/animations/variants'
-import { Zap, AlertTriangle, Brain, BookMarked } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ErrorExplanation } from '@/types'
-
-// ─── Mock data — shown when backend hasn't returned yet ──────────────────────
-// This is intentional demo data for the hackathon prototype.
-// When the AI agent's /ai/analyze endpoint is live and the backend
-// populates session analysis, real data will replace this automatically.
 
 const MOCK_EXPLANATION: ErrorExplanation = {
   sessionId: 'demo-session-001',
@@ -60,8 +54,6 @@ const MOCK_EXPLANATION: ErrorExplanation = {
     { sessionId: 'prev-002', errorType: 'TypeError', date: 'Last week', resolved: true },
   ],
 }
-
-// ─── Section nav ──────────────────────────────────────────────────────────────
 
 const SECTIONS = [
   { id: 'error',     label: 'Error',     icon: AlertTriangle },
@@ -133,18 +125,42 @@ function SectionDivider() {
   )
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
 export default function ExplanationPage() {
   const { currentSessionId } = useAppStore()
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const scrollRef             = useRef<HTMLDivElement>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
-  // ── Real data from backend ─────────────────────────────────────────────────
-  // Backend: GET /api/v1/session/{id}/analysis
-  // Maps BackendAnalysis → ErrorExplanation via mapAnalysisToErrorExplanation()
-  // If this query fails or returns null, useFallback shows MOCK_EXPLANATION.
   const explanationQuery = useErrorExplanation(currentSessionId)
-  const { data: displayData, isPreview, isLoading } = useFallback(explanationQuery, MOCK_EXPLANATION)
+
+  // Reset status when user leaves this page
+  useEffect(() => {
+    return () => {
+      useAppStore.getState().setAnalysisStatus('idle')
+    }
+  }, [])
+
+  // Auto-refetch once on mount if session exists but data not yet in cache
+  useEffect(() => {
+    if (currentSessionId && !explanationQuery.data && !explanationQuery.isLoading) {
+      explanationQuery.refetch()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSessionId])
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return
+    setIsRefreshing(true)
+    try {
+      await explanationQuery.refetch()
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
+  const hasSession  = !!currentSessionId
+  const isLoading   = hasSession && (explanationQuery.isLoading || explanationQuery.isFetching || isRefreshing)
+  const isPreview   = !hasSession || (!isLoading && !explanationQuery.data)
+  const displayData = explanationQuery.data ?? MOCK_EXPLANATION
 
   return (
     <AppShell activeNav="explanation">
@@ -159,13 +175,42 @@ export default function ExplanationPage() {
           transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
           className="mb-6"
         >
-          <div className="flex items-center">
-            <h1 className="text-xl font-semibold text-foreground tracking-tight">
-              Error Explanation
-            </h1>
-            {/* Badge appears only when showing mock/demo data */}
-            <PreviewBadgeInline visible={isPreview} />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-semibold text-foreground tracking-tight">
+                Error Explanation
+              </h1>
+              <PreviewBadgeInline visible={isPreview} />
+            </div>
+
+            {hasSession && (
+              <motion.button
+                type="button"
+                onClick={handleRefresh}
+                disabled={isLoading}
+                whileHover={isLoading ? undefined : { scale: 1.05 }}
+                whileTap={isLoading ? undefined : { scale: 0.95 }}
+                title="Refresh analysis"
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium',
+                  'border border-border/60 bg-muted/40 text-muted-foreground',
+                  'hover:bg-muted hover:text-foreground hover:border-border transition-all',
+                  isLoading && 'opacity-50 cursor-not-allowed',
+                )}
+              >
+                <motion.span
+                  animate={isLoading ? { rotate: 360 } : {}}
+                  transition={isLoading
+                    ? { duration: 0.8, repeat: Infinity, ease: 'linear' }
+                    : {}}
+                >
+                  <RefreshCw className="w-3 h-3" />
+                </motion.span>
+                {isLoading ? 'Loading...' : 'Refresh'}
+              </motion.button>
+            )}
           </div>
+
           <p className="text-sm text-muted-foreground mt-1">
             AI-powered analysis of what went wrong and how to fix it
           </p>

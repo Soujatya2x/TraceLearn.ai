@@ -47,7 +47,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         // Google/GitHub back to our backend is a cross-site top-level navigation
         // — SameSite=Strict would block the cookie from being set on that redirect.
         response.addHeader("Set-Cookie", String.format(
-            "%s=%s; Path=/api/v1/auth; HttpOnly; Secure; Max-Age=%d; SameSite=Lax",
+            "%s=%s; Path=/; HttpOnly; Secure; Max-Age=%d; SameSite=Lax",
             REFRESH_COOKIE_NAME,
             refreshToken,
             REFRESH_COOKIE_MAX_AGE

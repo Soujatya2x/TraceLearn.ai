@@ -40,7 +40,7 @@ function useChatWebSocket(sessionId: string | null) {
     ws.onopen = () => setIsConnected(true)
     ws.onclose = () => setIsConnected(false)
     ws.onerror = () => setIsConnected(false)
-    ws.onmessage = (e) => { try { const m = JSON.parse(e.data); if (m.type === 'CHAT_REPLY') queryClient.invalidateQueries({ queryKey: queryKeys.chat(sessionId) }) } catch {} }
+    ws.onmessage = (e) => { try { const m = JSON.parse(e.data); if (m.type === 'CHAT_REPLY') queryClient.invalidateQueries({ queryKey: queryKeys.chat(sessionId) }) } catch { } }
     return () => ws.close()
   }, [sessionId, queryClient])
   return { isConnected }
@@ -94,12 +94,11 @@ function ConversationCard({ errorType, errorContext, sessionId, isPreview, isCon
       </div>
 
       <div className="flex items-center gap-2">
-        {!isPreview && (
-          <div className={cn('flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold border',
-            isConnected ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-muted/60 text-muted-foreground border-border')}>
-            <motion.span className={cn('w-1.5 h-1.5 rounded-full', isConnected ? 'bg-emerald-400' : 'bg-muted-foreground/40')}
-              animate={isConnected ? { opacity: [1, 0.4, 1] } : {}} transition={{ duration: 2, repeat: Infinity }} />
-            {isConnected ? 'Live' : 'Connecting'}
+        {!isPreview && isConnected && (   // ← only show badge when actually connected
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+            <motion.span className="w-1.5 h-1.5 rounded-full bg-emerald-400"
+              animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 2, repeat: Infinity }} />
+            Live
           </div>
         )}
         <SessionPill id={sessionId} />
@@ -116,18 +115,18 @@ function ConversationCard({ errorType, errorContext, sessionId, isPreview, isCon
 
 export default function ChatPage() {
   const { currentSessionId } = useAppStore()
-  const chatQuery   = useChatSession(currentSessionId)
+  const chatQuery = useChatSession(currentSessionId)
   const sendMessage = useSendMessage(currentSessionId)
   const { data: displayData, isPreview, isLoading } = useFallback(chatQuery, MOCK_CHAT)
   const { isConnected } = useChatWebSocket(currentSessionId)
 
-  const [input, setInput]                     = useState('')
-  const [isTyping, setIsTyping]               = useState(false)
+  const [input, setInput] = useState('')
+  const [isTyping, setIsTyping] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef       = useRef<HTMLTextAreaElement>(null)
-  const prevCountRef   = useRef(0)
-  const mountedRef     = useRef(false)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const prevCountRef = useRef(0)
+  const mountedRef = useRef(false)
 
   useEffect(() => {
     const count = displayData.messages.length

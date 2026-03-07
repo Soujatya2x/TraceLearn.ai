@@ -1,31 +1,33 @@
-
 import apiClient from './client'
 import { API_ENDPOINTS } from './endpoints'
 import type { ApiResponse, ChatSession, SendMessageRequest } from '@/types'
 
-// ─── Get Chat Session ─────────────────────────────────────────
-//
-// GET /api/v1/chat/{sessionId}
-// Returns ChatSessionResponse from backend — already matches ChatSession type:
-//   sessionId, errorType, errorContext, messages[], suggestedPrompts[], createdAt
-
 export async function getChatSession(sessionId: string): Promise<ChatSession> {
-  const response = await apiClient.get<ApiResponse<ChatSession>>(
+  const response = await apiClient.get<ApiResponse<any>>(
     API_ENDPOINTS.CHAT_HISTORY(sessionId),
   )
-  return response.data.data
+  const raw = response.data.data
+
+  const cleanString = (val: any) =>
+    (!val || val === 'None' || val === 'null') ? '' : String(val)
+
+  return {
+    ...raw,
+    sessionId:       raw.sessionId ?? sessionId,
+    errorType:       cleanString(raw.errorType) || 'Unknown Error',
+    errorContext:    cleanString(raw.errorContext),
+    suggestedPrompts: raw.suggestedPrompts ?? [],
+    createdAt:       raw.createdAt ?? new Date().toISOString(),
+    messages: (raw.messages ?? raw.chatHistory ?? []).map((m: any, i: number) => ({
+      id:        m.id ?? `msg-${i}`,
+      sessionId: raw.sessionId ?? sessionId,
+      role:      (m.role ?? 'assistant').toLowerCase(),   // ← normalize USER → user
+      content:   cleanString(m.content ?? m.message ?? m.reply),
+      timestamp: m.timestamp ?? m.createdAt ?? new Date().toISOString(),
+    })),
+  }
 }
 
-// ─── Send Message ─────────────────────────────────────────────
-//
-// POST /api/v1/chat/message
-// Returns 202 Accepted with no body — AI reply comes via WebSocket.
-// Backend expects: { sessionId: UUID, message: string }
-// NOTE: field is "message" not "content" — matches ChatMessageRequest.java
-
 export async function sendChatMessage(payload: SendMessageRequest): Promise<void> {
-  await apiClient.post(
-    API_ENDPOINTS.CHAT_MESSAGE,
-    payload,
-  )
+  await apiClient.post(API_ENDPOINTS.CHAT_MESSAGE, payload)
 }

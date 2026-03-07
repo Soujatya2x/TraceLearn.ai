@@ -20,6 +20,12 @@ public interface SessionRepository extends JpaRepository<Session, UUID> {
     Page<Session> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
 
     /**
+     * All sessions for a user ordered by most recent first — used for streak calculation.
+     * Returns a plain List (no pagination) since streak logic needs the full history.
+     */
+    List<Session> findByUserIdOrderByCreatedAtDesc(UUID userId);
+
+    /**
      * Single session detail — fetches attempts and analysis in one query.
      * Use for GET /api/v1/session/{id} where both collections are needed.
      * LEFT JOIN FETCH prevents N+1 when mapping executionAttempts and aiAnalysis.

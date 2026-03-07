@@ -21,25 +21,25 @@ import java.util.stream.Collectors;
  *
  * THREAD POOL ARCHITECTURE:
  *
- *   taskExecutor     (core=5,  max=20) — this bean — orchestration pipelines
- *   sandboxExecutor  (core=3,  max=10) — SandboxGateway  — Docker exec calls
- *   analysisExecutor (core=5,  max=20) — AnalysisGateway — LLM inference calls
+ * taskExecutor (core=5, max=20) — this bean — orchestration pipelines
+ * sandboxExecutor (core=3, max=10) — SandboxGateway — Docker exec calls
+ * analysisExecutor (core=5, max=20) — AnalysisGateway — LLM inference calls
  *
  * TWO EXECUTION MODES:
  *
- *   LIVE_EXECUTION:
- *     runAnalysisPipeline() — unchanged from v1.
- *     code → Sandbox → stdout/stderr → AI Agent → analysis + artifacts
+ * LIVE_EXECUTION:
+ * runAnalysisPipeline() — unchanged from v1.
+ * code → Sandbox → stdout/stderr → AI Agent → analysis + artifacts
  *
- *   LOG_ANALYSIS:
- *     runLogAnalysisPipeline() — NEW.
- *     Sandbox is SKIPPED entirely.
- *     code + log file → AI Agent directly with framework-aware prompts.
- *     Used for Spring Boot, FastAPI, and other framework-based projects.
+ * LOG_ANALYSIS:
+ * runLogAnalysisPipeline() — NEW.
+ * Sandbox is SKIPPED entirely.
+ * code + log file → AI Agent directly with framework-aware prompts.
+ * Used for Spring Boot, FastAPI, and other framework-based projects.
  *
  * SELF-CALL PROXY BYPASS:
- *   All @Async methods live in separate beans. OrchestrationService calls
- *   this bean externally — Spring AOP proxy always intercepts correctly.
+ * All @Async methods live in separate beans. OrchestrationService calls
+ * this bean externally — Spring AOP proxy always intercepts correctly.
  */
 @Slf4j
 @Service
@@ -54,10 +54,10 @@ public class AsyncPipelineExecutor {
     private final LearningMetricService learningMetricService;
     private final NotificationService notificationService;
     private final SessionMapper sessionMapper;
-    private final SandboxGateway sandboxGateway;       // sandboxExecutor pool
-    private final AnalysisGateway analysisGateway;     // analysisExecutor pool
+    private final SandboxGateway sandboxGateway; // sandboxExecutor pool
+    private final AnalysisGateway analysisGateway; // analysisExecutor pool
     private final ObjectMapper objectMapper;
-    private final WorkspaceService workspaceService;   // MEDIUM-4: read code/logs from disk
+    private final WorkspaceService workspaceService; // MEDIUM-4: read code/logs from disk
 
     // ─── 1. Initial Analysis Pipeline (LIVE_EXECUTION) ───────────────────────
 
@@ -141,8 +141,7 @@ public class AsyncPipelineExecutor {
             notificationService.notifySessionUpdate(sessionId, "ANALYZING",
                     java.util.Map.of(
                             "mode", "LOG_ANALYSIS",
-                            "framework", session.getFrameworkHint() != null ? session.getFrameworkHint() : "unknown"
-                    ));
+                            "framework", session.getFrameworkHint() != null ? session.getFrameworkHint() : "unknown"));
 
             AiAnalyzeRequest analyzeReq = buildLogAnalysisRequest(session, request);
 
@@ -235,16 +234,16 @@ public class AsyncPipelineExecutor {
             notificationService.notifySessionUpdate(sessionId, "ANALYZING", null);
 
             int lastAttemptNumber = attemptNumber - 1;
-            List<AiAnalyzeRequest.PreviousAttempt> previousAttempts =
-                    executionService.getAttemptsBySession(sessionId).stream()
-                            .map(a -> AiAnalyzeRequest.PreviousAttempt.builder()
-                                    .attemptNumber(a.getAttemptNumber())
-                                    .code(a.getCodeExecuted())
-                                    .stderr(a.getStderr())
-                                    .exitCode(a.getExitCode() != null ? a.getExitCode() : -1)
-                                    .aiFix(a.getAttemptNumber() == lastAttemptNumber ? previousAiFix : null)
-                                    .build())
-                            .collect(Collectors.toList());
+            List<AiAnalyzeRequest.PreviousAttempt> previousAttempts = executionService.getAttemptsBySession(sessionId)
+                    .stream()
+                    .map(a -> AiAnalyzeRequest.PreviousAttempt.builder()
+                            .attemptNumber(a.getAttemptNumber())
+                            .code(a.getCodeExecuted())
+                            .stderr(a.getStderr())
+                            .exitCode(a.getExitCode() != null ? a.getExitCode() : -1)
+                            .aiFix(a.getAttemptNumber() == lastAttemptNumber ? previousAiFix : null)
+                            .build())
+                    .collect(Collectors.toList());
 
             // MEDIUM-4: read original code/logs from workspace instead of session entity
             String originalCode = workspaceService.readCodeFile(session.getWorkspacePath(), session.getLanguage());
@@ -257,8 +256,8 @@ public class AsyncPipelineExecutor {
                     .stderr(attempt.getStderr())
                     .stdout(attempt.getStdout())
                     .exitCode(attempt.getExitCode())
-                    .originalCode(originalCode)
-                    .originalLogs(originalLogs)
+                    .originalCode(originalCode != null ? originalCode : "")
+                    .originalLogs(originalLogs != null ? originalLogs : "")
                     .attemptNumber(attemptNumber)
                     .previousAttempts(previousAttempts)
                     .executionMode(ExecutionMode.LIVE_EXECUTION.name())
@@ -310,7 +309,8 @@ public class AsyncPipelineExecutor {
                     .build();
 
             AiChatResponse aiResponse = analysisGateway.chatReactive(chatReq).get();
-            ChatMessage assistantMsg = chatService.saveAssistantMessage(session, aiResponse.getReply());
+            ChatMessage assistantMsg = chatService.saveAssistantMessage(
+                    session, aiResponse.getReply(), aiResponse.getSuggestedFollowUps());
             notificationService.notifyChatReply(sessionId, assistantMsg);
 
         } catch (Exception e) {
@@ -371,7 +371,7 @@ public class AsyncPipelineExecutor {
      * Extracted to avoid duplication — both initial and retry eventually call AI.
      */
     private void runAiAnalysis(Session session, AnalyzeRequest request,
-                                ExecutionAttempt attempt, int attemptNumber) throws Exception {
+            ExecutionAttempt attempt, int attemptNumber) throws Exception {
         UUID sessionId = session.getId();
 
         sessionService.updateSessionStatus(sessionId, SessionStatus.ANALYZING);
@@ -418,12 +418,13 @@ public class AsyncPipelineExecutor {
                 .sessionId(session.getId().toString())
                 .code(original.getCode())
                 .language(original.getLanguage())
-                .stderr(attempt != null ? attempt.getStderr() : null)
-                .stdout(attempt != null ? attempt.getStdout() : null)
-                .exitCode(attempt != null ? attempt.getExitCode() : null)
-                .originalCode(original.getCode())
-                .originalLogs(original.getLogs())
+                .stderr(attempt != null ? attempt.getStderr() : "")
+                .stdout(attempt != null ? attempt.getStdout() : "")
+                .exitCode(attempt != null ? attempt.getExitCode() : 0)
+                .originalCode(original.getCode() != null ? original.getCode() : "")
+                .originalLogs(original.getLogs() != null ? original.getLogs() : "") // ← null → ""
                 .attemptNumber(attempt != null ? attempt.getAttemptNumber() : 1)
+                .previousAttempts(java.util.List.of()) // ← null → empty list
                 .executionMode(ExecutionMode.LIVE_EXECUTION.name())
                 .build();
     }
@@ -440,7 +441,7 @@ public class AsyncPipelineExecutor {
                 .code(request.getCode())
                 .language(request.getLanguage())
                 .originalCode(request.getCode())
-                .logContent(request.getLogs())     // developer's log file → AI reads directly
+                .logContent(request.getLogs()) // developer's log file → AI reads directly
                 .originalLogs(request.getLogs())
                 .attemptNumber(1)
                 .executionMode(ExecutionMode.LOG_ANALYSIS.name())
@@ -455,9 +456,11 @@ public class AsyncPipelineExecutor {
     }
 
     private List<String> deserializeList(String json, UUID sessionId) {
-        if (json == null || json.isBlank()) return null;
+        if (json == null || json.isBlank())
+            return null;
         try {
-            return objectMapper.readValue(json, new TypeReference<List<String>>() {});
+            return objectMapper.readValue(json, new TypeReference<List<String>>() {
+            });
         } catch (Exception e) {
             log.warn("Failed to deserialize list for session {}: {}", sessionId, e.getMessage());
             return null;
@@ -465,7 +468,8 @@ public class AsyncPipelineExecutor {
     }
 
     private AiArtifactsRequest.FixAnalysis deserializeFixAnalysis(String json, UUID sessionId) {
-        if (json == null || json.isBlank()) return null;
+        if (json == null || json.isBlank())
+            return null;
         try {
             return objectMapper.readValue(json, AiArtifactsRequest.FixAnalysis.class);
         } catch (Exception e) {
@@ -476,10 +480,12 @@ public class AsyncPipelineExecutor {
 
     private List<AiArtifactsRequest.LearningResource> deserializeLearningResources(
             String json, UUID sessionId) {
-        if (json == null || json.isBlank()) return null;
+        if (json == null || json.isBlank())
+            return null;
         try {
             return objectMapper.readValue(json,
-                    new TypeReference<List<AiArtifactsRequest.LearningResource>>() {});
+                    new TypeReference<List<AiArtifactsRequest.LearningResource>>() {
+                    });
         } catch (Exception e) {
             log.warn("Failed to deserialize learningResources for session {}: {}", sessionId, e.getMessage());
             return null;

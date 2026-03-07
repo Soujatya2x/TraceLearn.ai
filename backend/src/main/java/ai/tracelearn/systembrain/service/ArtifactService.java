@@ -18,10 +18,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -213,8 +217,48 @@ public class ArtifactService {
                 .totalErrorsAnalyzed(totalSessions)
                 .conceptsCovered(conceptCount)
                 .fixSuccessRate(fixSuccessRate)
-                .learningStreakDays(0L)   // TODO: implement streak from session createdAt timestamps
+                .learningStreakDays(calculateStreakDays(userId))
                 .build();
+    }
+
+    /**
+     * Calculate consecutive days streak from session timestamps.
+     *
+     * A streak is the number of consecutive calendar days (including today or yesterday)
+     * on which the user had at least one session. If the most recent session is older
+     * than yesterday the streak resets to 0.
+     *
+     * Example: sessions on Mon, Tue, Thu → streak = 1 (Thu only; Wed breaks the chain)
+     * Example: sessions on Mon, Tue, Wed (today) → streak = 3
+     */
+    private long calculateStreakDays(UUID userId) {
+        List<Instant> dates = sessionRepository
+                .findByUserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(Session::getCreatedAt)
+                .collect(Collectors.toList());
+
+        if (dates.isEmpty()) return 0L;
+
+        Instant today = Instant.now().truncatedTo(ChronoUnit.DAYS);
+        Instant latest = dates.get(0).truncatedTo(ChronoUnit.DAYS);
+
+        // If latest session is older than yesterday, streak is already broken
+        if (Duration.between(latest, today).toDays() > 1) return 0L;
+
+        long streak = 1;
+        for (int i = 1; i < dates.size(); i++) {
+            Instant prev = dates.get(i).truncatedTo(ChronoUnit.DAYS);
+            Instant curr = dates.get(i - 1).truncatedTo(ChronoUnit.DAYS);
+            long gap = Duration.between(prev, curr).toDays();
+            if (gap == 1) {
+                streak++;
+            } else if (gap > 1) {
+                break;
+            }
+            // gap == 0 means two sessions on the same day — skip, don't increment
+        }
+        return streak;
     }
 
     private String presign(String rawUrl, int expiryMinutes) {

@@ -216,6 +216,7 @@ public class OrchestrationService {
 
         // MEDIUM-4: originalLogs no longer on session entity — read from workspace
         String errorContext = workspaceService.readLogFile(session.getWorkspacePath());
+        if (errorContext == null) errorContext = "";
 
         AiChatRequest chatReq = AiChatRequest.builder()
                 .sessionId(sessionId.toString())

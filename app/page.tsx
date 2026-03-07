@@ -1,16 +1,13 @@
-"use client"
+'use client'
 
-import { useRouter } from "next/navigation"
-import { useEffect } from "react"
-import { AppShell } from "@/components/layouts/AppShell"
-import { CodeEditor } from "@/features/workspace/CodeEditor"
-import { WorkspaceRightPanel } from "@/features/workspace/WorkspaceRightPanel"
-import { AnalyzeButton } from "@/features/workspace/AnalyzeButton"
-import { useAppStore } from "@/store/useAppStore"
-import { useSession, useAnalyzeCode } from "@/hooks/useAnalysis"
+import { AppShell } from '@/components/layouts/AppShell'
+import { CodeEditor } from '@/features/workspace/CodeEditor'
+import { WorkspaceRightPanel } from '@/features/workspace/WorkspaceRightPanel'
+import { AnalyzeButton } from '@/features/workspace/AnalyzeButton'
+import { useAppStore } from '@/store/useAppStore'
+import { useSession, useAnalyzeCode } from '@/hooks/useAnalysis'
 
 export default function WorkspacePage() {
-  const router = useRouter()
   const {
     currentSessionId, analysisStatus, currentSession,
     code, language, logFile, projectFiles,
@@ -20,14 +17,14 @@ export default function WorkspacePage() {
   const { data: _session } = useSession(currentSessionId)
   const analyzeCode = useAnalyzeCode()
 
-  useEffect(() => {
-    if (analysisStatus === "completed" && currentSessionId) router.push("/explanation")
-  }, [analysisStatus, currentSessionId, router])
-
-  const errorLine = currentSession?.structuredError?.line
+  const errorLine  = currentSession?.structuredError?.line
+  const codeFile   = projectFiles[0] ?? null
+  const hasContent = code.trim().length > 0 || codeFile !== null
 
   const handleAnalyze = () => {
-    if (!code.trim()) return
+    if (!hasContent) return
+    // Reset sessionViewed so polling can update status normally for this new analysis
+    useAppStore.getState().setSessionViewed(false)
     analyzeCode.mutate({ code, language, logFile, projectFiles, frameworkType: detectedFramework })
   }
 
@@ -58,7 +55,7 @@ export default function WorkspacePage() {
                 </p>
               </div>
               <div className="flex-shrink-0 ml-4">
-                <AnalyzeButton status={analysisStatus} onClick={handleAnalyze} disabled={!code.trim()} />
+                <AnalyzeButton status={analysisStatus} onClick={handleAnalyze} disabled={!hasContent} />
               </div>
             </div>
             <div className="absolute right-0 top-0 bottom-0 w-px pointer-events-none" style={{

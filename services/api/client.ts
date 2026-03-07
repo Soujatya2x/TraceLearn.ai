@@ -1,7 +1,3 @@
-// ============================================================
-// TraceLearn.ai — Centralized Axios API Client
-// ============================================================
-
 import axios, {
   type AxiosInstance,
   type AxiosRequestConfig,

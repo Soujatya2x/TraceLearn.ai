@@ -73,16 +73,27 @@ export async function analyzeCode(
   frameworkType?: string | null,
 ): Promise<AnalyzeResponse> {
   const formData = new FormData()
-  formData.append('code', new Blob([code], { type: 'text/plain' }), resolveFilename(language))
+
+  // If a file was uploaded use it directly; otherwise build blob from editor code
+  const codeFile = projectFiles?.[0]
+  if (codeFile) {
+    formData.append('code', codeFile, codeFile.name)
+  } else {
+    formData.append('code', new Blob([code], { type: 'text/plain' }), resolveFilename(language))
+  }
+
   formData.append('language', language)
+
   if (logFile) {
     formData.append('logs', logFile, logFile.name)
   }
   if (frameworkType) {
     formData.append('frameworkType', frameworkType)
   }
-  if (projectFiles?.length) {
-    projectFiles.forEach((f) => formData.append('projectFiles', f, f.name))
+
+  // Skip index 0 — already appended above as 'code'
+  if (projectFiles && projectFiles.length > 1) {
+    projectFiles.slice(1).forEach((f) => formData.append('projectFiles', f, f.name))
   }
 
   const response = await apiClient.post<ApiResponse<AnalyzeResponse>>(
