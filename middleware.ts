@@ -62,10 +62,11 @@ export const config = {
     '/',
     '/explanation/:path*',
     '/chat/:path*',
+    '/rag/:path*',
     '/validation/:path*',
     '/artifacts/:path*',
     '/roadmap/:path*',
     '/auth/:path*',
-    '/api/:path*',       // protect any future Next.js API routes
+    '/api/:path*',       
   ],
 }

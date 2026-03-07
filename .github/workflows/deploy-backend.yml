@@ -1,0 +1,31 @@
+name: Deploy Sandbox
+
+on:
+  push:
+    branches: [main]
+    paths: ['sandbox/**']
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "sandbox/"
+          target: "/home/ubuntu/tracelearn/"
+
+      - uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /home/ubuntu/tracelearn
+            docker compose build sandbox
+            docker compose up -d sandbox
+            docker ps | grep -q tracelearn-sandbox && echo '✅ OK' || exit 1

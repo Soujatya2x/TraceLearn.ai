@@ -223,10 +223,11 @@ export default function RagPage() {
     }
   }
 
-  const canUpload = files.length > 0 && phase === 'upload'
-  const canAsk    = !!collectionId && query.trim().length > 0 && phase !== 'asking' && phase !== 'indexing'
+  const canUpload  = files.length > 0 && phase === 'upload'
   const isIndexing = phase === 'indexing'
+  const isAsking   = (phase as Phase) === 'asking'
   const isReady    = phase === 'ready' || phase === 'answered'
+  const canAsk     = !!collectionId && query.trim().length > 0 && !isAsking && !isIndexing
 
   return (
     <AppShell>
@@ -293,6 +294,7 @@ export default function RagPage() {
                 multiple
                 accept=".pdf,.txt,.md,.docx,.py,.java,.js,.html,.csv"
                 onChange={handleFileInput}
+                aria-label="Ask a question about your documents"
                 className="hidden"
                 disabled={isReady || isIndexing}
               />
@@ -430,7 +432,7 @@ export default function RagPage() {
             </AnimatePresence>
 
             {/* Typing indicator while RAG is answering */}
-            {phase === 'asking' && (
+            {isAsking && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -462,11 +464,11 @@ export default function RagPage() {
                     : 'Upload and index documents first'
                 }
                 rows={2}
-                disabled={!isReady || phase === 'asking'}
+                disabled={!isReady || isAsking}
                 className={cn(
                   'flex-1 resize-none rounded-xl border border-[var(--border)] bg-[var(--background)] px-4 py-3 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none transition-all',
                   'focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20',
-                  (!isReady || phase === 'asking') && 'cursor-not-allowed opacity-50',
+                  (!isReady || isAsking) && 'cursor-not-allowed opacity-50',
                 )}
               />
               <button
@@ -480,7 +482,7 @@ export default function RagPage() {
                 )}
                 aria-label="Send query"
               >
-                {phase === 'asking'
+                {isAsking
                   ? <Loader2 className="w-4 h-4 animate-spin" />
                   : <Send className="w-4 h-4" />
                 }

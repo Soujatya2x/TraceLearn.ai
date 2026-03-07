@@ -23,4 +23,7 @@ export const API_ENDPOINTS = {
 
   // ── Roadmap ──────────────────────────────────────────────
   ROADMAP: (userId: string) => `/roadmap/${userId}`,
+  // ── RAG ─────────────────────────────────────────────────
+  RAG_UPLOAD: '/rag/upload',
+  RAG_QUERY:  '/rag/query',
 } as const

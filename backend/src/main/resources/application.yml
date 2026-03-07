@@ -1,5 +1,6 @@
 server:
   port: 8080
+  forward-headers-strategy: native
   servlet:
     context-path: /
 
@@ -143,6 +144,9 @@ app:
     roadmap-endpoint: /ai/roadmap
     connect-timeout-ms: 5000
     read-timeout-ms: 60000
+    # RAG endpoints (handled by same FastAPI process on different routes)
+    rag-index-endpoint: /rag/index
+    rag-query-endpoint: /rag/query
 
   execution:
     max-retry-count: ${MAX_RETRY_COUNT:3}
@@ -151,7 +155,9 @@ app:
   aws:
     s3:
       bucket-name: ${S3_BUCKET:tracelearn-artifacts}
-      region: ${AWS_REGION:us-east-1}
+      region: ${AWS_REGION:ap-south-1}
+      access-key-id: ${AWS_ACCESS_KEY_ID:}
+      secret-access-key: ${AWS_SECRET_ACCESS_KEY:}
       presigned-url-expiry-minutes: 60
     cloudwatch:
       log-group: ${CLOUDWATCH_LOG_GROUP:tracelearn-system-brain}

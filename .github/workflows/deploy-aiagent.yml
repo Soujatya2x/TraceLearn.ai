@@ -1,0 +1,32 @@
+name: Deploy AI Agent
+
+on:
+  push:
+    branches: [main]
+    paths: ['ai-agent/**']
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "ai-agent/"
+          target: "/home/ubuntu/tracelearn/"
+
+      - uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /home/ubuntu/tracelearn
+            docker compose build ai-agent
+            docker compose up -d ai-agent
+            sleep 30
+            docker ps | grep -q tracelearn-ai-agent && echo '✅ OK' || exit 1
