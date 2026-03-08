@@ -7,41 +7,8 @@ import { CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 import { useAuthStore } from '@/store/useAuthStore'
 import { tokenStorage, getCurrentUser } from '@/services/api/authService'
 
-// ─── How this page is reached ─────────────────────────────────
-//
-// OAuth2AuthenticationSuccessHandler (backend) redirects here:
-//   {FRONTEND}/auth/callback#token=<accessJWT>
-//
-// MEDIUM-1 FIX: Access token is now in the URL fragment (#) not query params (?).
-//
-// Why fragment instead of query param?
-//   - Fragments are NEVER sent to the server — they are stripped by the browser
-//     before the HTTP request is made. This means the token never appears in:
-//       • Backend access logs for this page
-//       • The Referer header on any subsequent navigation
-//       • CDN or load balancer logs
-//       • Analytics tools that scrape URL query strings
-//   - Query params (?token=...) appear in all of the above.
-//
-// The fragment is only readable by JavaScript on the page via window.location.hash.
-// useSearchParams() does NOT read fragments — we use window.location.hash directly.
-//
-// This page then:
-//   1. Reads access token from window.location.hash (#token=...)
-//   2. Immediately clears the hash from the URL via router.replace() — removes
-//      it from browser history so back-navigation can't expose the token
-//   3. Stores access token in memory via tokenStorage.setAccess()
-//   4. Fetches user profile (GET /auth/me)
-//   5. Calls setUser() to populate the auth store
-//   6. Navigates to the intended destination
-//
-// The refresh token is NOT in the URL at all — it arrives as an httpOnly cookie
-// set by the backend before the redirect (HIGH-3 fix).
-
 type CallbackState = 'loading' | 'success' | 'error'
 
-// Parses key=value pairs from a URL fragment string.
-// e.g. parseFragment("token=eyJ...&next=/dashboard") → { token: "eyJ...", next: "/dashboard" }
 function parseFragment(hash: string): Record<string, string> {
   const raw = hash.startsWith('#') ? hash.slice(1) : hash
   if (!raw) return {}
@@ -53,6 +20,14 @@ function parseFragment(hash: string): Record<string, string> {
   )
 }
 
+// Also parse query params (?token=...) as fallback
+function parseQuery(search: string): Record<string, string> {
+  const params = new URLSearchParams(search)
+  const result: Record<string, string> = {}
+  params.forEach((v, k) => { result[k] = v })
+  return result
+}
+
 export default function AuthCallbackPage() {
   const router  = useRouter()
   const setUser = useAuthStore((s) => s.setUser)
@@ -60,50 +35,66 @@ export default function AuthCallbackPage() {
   const [state, setState]       = useState<CallbackState>('loading')
   const [errorMsg, setErrorMsg] = useState('')
 
-  // Guard: React StrictMode calls effects twice in dev.
   const handled = useRef(false)
 
   useEffect(() => {
-  if (handled.current) return
-  handled.current = true
+    if (handled.current) return
+    handled.current = true
 
-  const searchParams = new URLSearchParams(window.location.search)
-  if (searchParams.get('error')) {
-    setState('error')
-    setErrorMsg(`OAuth error: ${searchParams.get('error_description') ?? searchParams.get('error')}`)
-    return
-  }
-
-  const params = parseFragment(window.location.hash)
-  const accessToken = params['token'] ?? ''
-  const next = params['next'] ?? '/'
-
-  if (!accessToken) {
-    setState('error')
-    setErrorMsg('No access token received. Please try signing in again.')
-    return
-  }
-
-  const expiresAt = Date.now() + 86_400 * 1_000
-
-  // 1. Store token FIRST
-  tokenStorage.setAccess(accessToken, expiresAt)
-
-  // 2. Fetch user BEFORE navigating so initAuth() finds token already set
-  getCurrentUser()
-    .then((user) => {
-      setUser(user)
-      setState('success')
-      // 3. Only navigate AFTER user is stored
-      setTimeout(() => router.replace(next), 300)
-    })
-    .catch((err: unknown) => {
-      tokenStorage.clear()
-      const msg = err instanceof Error ? err.message : 'Could not load user profile.'
+    // Check for OAuth provider errors first
+    const searchParams = new URLSearchParams(window.location.search)
+    if (searchParams.get('error')) {
       setState('error')
-      setErrorMsg(msg)
-    })
-}, [router, setUser])
+      setErrorMsg(
+        `OAuth error: ${searchParams.get('error_description') ?? searchParams.get('error')}`,
+      )
+      return
+    }
+
+    // Try fragment first (#token=...), then query param (?token=...) as fallback
+    const fragmentParams = parseFragment(window.location.hash)
+    const queryParams    = parseQuery(window.location.search)
+
+    const accessToken = fragmentParams['token'] ?? queryParams['token'] ?? ''
+    const next        = fragmentParams['next']  ?? queryParams['next']  ?? '/'
+
+    if (!accessToken) {
+      setState('error')
+      setErrorMsg('No access token received. Please try signing in again.')
+      return
+    }
+
+    const expiresAt = Date.now() + 86_400 * 1_000 // 24h
+
+    // ── CRITICAL ORDER ──────────────────────────────────────
+    // 1. Store token in memory + sessionStorage FIRST
+    // 2. Fetch user (needs the token)
+    // 3. Store user in Zustand
+    // 4. THEN navigate away
+    // If we navigate first, the new page's initAuth() runs before
+    // the token is stored and falls through to a failed refresh call.
+    // ────────────────────────────────────────────────────────
+
+    tokenStorage.setAccess(accessToken, expiresAt)
+
+    getCurrentUser()
+      .then((user) => {
+        setUser(user)
+        setState('success')
+        // Clear the fragment/token from URL then navigate
+        // Small delay so user sees the success tick
+        setTimeout(() => {
+          router.replace(next)
+        }, 500)
+      })
+      .catch((err: unknown) => {
+        tokenStorage.clear()
+        const msg =
+          err instanceof Error ? err.message : 'Could not load user profile. Please try again.'
+        setState('error')
+        setErrorMsg(msg)
+      })
+  }, [router, setUser])
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
