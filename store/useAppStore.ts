@@ -94,12 +94,15 @@ export const useAppStore = create<AppState>()(
       {
         name: "tracelearn-storage",
         partialize: (state) => ({
-          theme:            state.theme,
-          language:         state.language,
-          currentSessionId: state.currentSessionId,
-          userId:           state.userId,
-          analysisStatus:   state.analysisStatus,
-          sessionViewed:    state.sessionViewed,
+          // ── DO NOT persist currentSessionId or analysisStatus ──────────────
+          // On page reload the access token is lost (cross-domain httpOnly cookie
+          // can't be sent from Vercel to hopto.org), so any API call using the
+          // persisted sessionId will return 401 and show a blank explanation.
+          // These are session-scoped values — reset them on every page load.
+          theme:        state.theme,
+          language:     state.language,
+          userId:       state.userId,
+          sessionViewed: false,  // always reset on reload
         }),
       },
     ),
