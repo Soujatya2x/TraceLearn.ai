@@ -31,7 +31,7 @@ services:
       - SANDBOX_INTERNAL_SECRET=${SANDBOX_INTERNAL_SECRET}
       - WORKSPACE_ROOT=/tmp/tracelearn/workspaces
     volumes:
-      - workspace-data:/tmp/tracelearn/workspaces
+      - /tmp/tracelearn/workspaces:/tmp/tracelearn/workspaces
     networks:
       - tracelearn-network
     restart: unless-stopped
@@ -60,10 +60,10 @@ services:
       - "127.0.0.1:8000:8000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - workspace-data:/workspace
+      - /tmp/tracelearn/workspaces:/tmp/tracelearn/workspaces
     environment:
       - ENVIRONMENT=production
-      - WORKSPACE_ROOT=/workspace
+      - WORKSPACE_ROOT=/tmp/tracelearn/workspaces
       - AUTO_PULL_IMAGES=false
       - MAX_EXECUTION_TIME=60
       - DEFAULT_TIMEOUT_SECONDS=10
