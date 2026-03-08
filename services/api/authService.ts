@@ -130,13 +130,19 @@ export async function signUpWithEmail(payload: SignUpEmailRequest): Promise<Auth
 // cross-origin request (frontend on :3000, backend on :8080 in dev).
 
 export async function refreshAccessToken(): Promise<RefreshTokenResponse> {
+  // If we already have a valid non-expired token, skip the refresh call.
+  // The refresh cookie is cross-domain (hopto.org → vercel.app) and
+  // browsers block it — calling refresh without a cookie always returns 400.
+  if (tokenStorage.getAccess() && !tokenStorage.isExpired()) {
+    return { tokens: { accessToken: tokenStorage.getAccess()!, expiresAt: tokenStorage.getExpires() } }
+  }
+
   const res = await apiClient.post<ApiResponse<RefreshTokenResponse>>(
     AUTH_ENDPOINTS.REFRESH,
-    {},                        // empty body — token comes from the cookie
-    { withCredentials: true }, // required to send the httpOnly cookie cross-origin
+    {},
+    { withCredentials: true },
   )
   const { tokens } = res.data.data
-  // Backend rotates the refresh cookie automatically — we only update access token.
   tokenStorage.setAccess(tokens.accessToken, tokens.expiresAt)
   return res.data.data
 }

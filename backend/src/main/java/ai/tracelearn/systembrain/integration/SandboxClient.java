@@ -108,7 +108,7 @@ public class SandboxClient {
         try {
             String result = sandboxWebClient
                     .get()
-                    .uri("/health")
+                    .uri("/sandbox/health")
                     .retrieve()
                     .bodyToMono(String.class)
                     .timeout(Duration.ofSeconds(5))

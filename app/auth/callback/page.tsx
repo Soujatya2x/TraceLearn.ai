@@ -64,60 +64,46 @@ export default function AuthCallbackPage() {
   const handled = useRef(false)
 
   useEffect(() => {
-    if (handled.current) return
-    handled.current = true
+  if (handled.current) return
+  handled.current = true
 
-    // Read from fragment — window.location.hash is always available client-side.
-    // This page is 'use client' so this runs only in the browser, never on the server.
-    const params = parseFragment(window.location.hash)
+  const searchParams = new URLSearchParams(window.location.search)
+  if (searchParams.get('error')) {
+    setState('error')
+    setErrorMsg(`OAuth error: ${searchParams.get('error_description') ?? searchParams.get('error')}`)
+    return
+  }
 
-    const accessToken = params['token'] ?? ''
-    const next        = params['next']  ?? '/'
+  const params = parseFragment(window.location.hash)
+  const accessToken = params['token'] ?? ''
+  const next = params['next'] ?? '/'
 
-    // Handle OAuth provider errors (e.g. user denied consent).
-    // Providers put errors in query params (?error=...) not fragments,
-    // so we check window.location.search for those.
-    const searchParams = new URLSearchParams(window.location.search)
-    if (searchParams.get('error')) {
+  if (!accessToken) {
+    setState('error')
+    setErrorMsg('No access token received. Please try signing in again.')
+    return
+  }
+
+  const expiresAt = Date.now() + 86_400 * 1_000
+
+  // 1. Store token FIRST
+  tokenStorage.setAccess(accessToken, expiresAt)
+
+  // 2. Fetch user BEFORE navigating so initAuth() finds token already set
+  getCurrentUser()
+    .then((user) => {
+      setUser(user)
+      setState('success')
+      // 3. Only navigate AFTER user is stored
+      setTimeout(() => router.replace(next), 300)
+    })
+    .catch((err: unknown) => {
+      tokenStorage.clear()
+      const msg = err instanceof Error ? err.message : 'Could not load user profile.'
       setState('error')
-      setErrorMsg(
-        `OAuth error: ${searchParams.get('error_description') ?? searchParams.get('error')}`,
-      )
-      return
-    }
-
-    if (!accessToken) {
-      setState('error')
-      setErrorMsg('No access token received. Please try signing in again.')
-      return
-    }
-
-    const expiresAt = Date.now() + 86_400 * 1_000 // 24h default
-
-    // Store access token BEFORE navigating — critical fix.
-    // If we navigate first, the new page's initAuth() runs before the token
-    // is stored and falls through to the cross-origin refresh call (400 error).
-    tokenStorage.setAccess(accessToken, expiresAt)
-
-    // Now clear the fragment from URL history
-    router.replace(next)
-
-    getCurrentUser()
-      .then((user) => {
-        setUser(user)
-        setState('success')
-        // router.replace(next) was already called above to clear the hash.
-        // The navigation to 'next' happens as part of that replace — Next.js
-        // handles the routing. We show 'success' briefly then the page changes.
-      })
-      .catch((err: unknown) => {
-        tokenStorage.clear()
-        const msg =
-          err instanceof Error ? err.message : 'Could not load user profile. Please try again.'
-        setState('error')
-        setErrorMsg(msg)
-      })
-  }, [router, setUser])
+      setErrorMsg(msg)
+    })
+}, [router, setUser])
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
