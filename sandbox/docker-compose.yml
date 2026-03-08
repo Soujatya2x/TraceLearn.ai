@@ -20,10 +20,10 @@ services:
       # Mount HOST Docker socket — allows sandbox to create sibling containers
       - /var/run/docker.sock:/var/run/docker.sock
       # Mount workspace volume — backend writes code here, sandbox reads from here
-      - /tmp/workspace:/workspace
+      - /tmp/workspace:/tmp/tracelearn//workspaces
     environment:
       - ENVIRONMENT=development
-      - WORKSPACE_ROOT=/workspace
+      - WORKSPACE_ROOT=/tmp/tracelearn//workspaces
       - AUTO_PULL_IMAGES=true
       - MAX_EXECUTION_TIME=60
       - DEFAULT_TIMEOUT_SECONDS=10
