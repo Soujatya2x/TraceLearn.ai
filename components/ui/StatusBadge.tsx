@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
   idle:       { label: 'Idle',       color: 'bg-muted text-muted-foreground',                              dot: 'bg-muted-foreground'          },
-  processing: { label: 'Processing', color: 'bg-warning/10 text-warning-foreground border border-warning/20', dot: 'bg-warning animate-pulse'  },
+  processing: { label: 'Processing', color: 'bg-warning/10 text-green-700 border border-warning/20', dot: 'bg-warning animate-pulse'  },
   analyzing:  { label: 'Analyzing',  color: 'bg-primary/10 text-primary border border-primary/20',        dot: 'bg-primary animate-pulse'     },
   validating: { label: 'Validating', color: 'bg-primary/10 text-primary border border-primary/20',        dot: 'bg-primary animate-pulse'     },
   completed:  { label: 'Completed',  color: 'bg-success/10 text-success-foreground border border-success/20', dot: 'bg-success'               },
