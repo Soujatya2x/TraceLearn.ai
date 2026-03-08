@@ -1,34 +1,51 @@
-name: Deploy Backend
+name: Deploy Sandbox
 
 on:
   push:
-    branches: [master]
-    paths: ['backend/**', 'docker-compose.yml']
+    branches: [main, master]
+    paths:
+      - "sandbox/**"
+
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Copy code to EC2
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Copy sandbox to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "backend/,docker-compose.yml"
-          target: "/home/ubuntu/tracelearn/"
+          source: sandbox
+          target: /home/ubuntu/tracelearn/
 
-      - name: Build and restart
+      - name: Build and restart sandbox
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            set -e
             cd /home/ubuntu/tracelearn
-            docker compose build backend
-            docker compose up -d backend
+
+            echo "Stopping old sandbox..."
+            docker compose stop sandbox || true
+
+            echo "Building sandbox..."
+            docker compose build sandbox
+
+            echo "Starting sandbox..."
+            docker compose up -d sandbox
+
             sleep 20
-            docker ps | grep -q tracelearn-backend && echo '✅ OK' || (docker compose logs backend --tail=50 && exit 1)
+
+            docker ps
+
+            docker ps | grep tracelearn-sandbox && echo "✅ Sandbox running" || (docker compose logs sandbox --tail=50 && exit 1)
