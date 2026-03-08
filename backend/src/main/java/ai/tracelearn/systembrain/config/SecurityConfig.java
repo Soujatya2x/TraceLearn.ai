@@ -3,6 +3,7 @@ package ai.tracelearn.systembrain.config;
 import ai.tracelearn.systembrain.security.CustomOAuth2UserService;
 import ai.tracelearn.systembrain.security.CustomOidcUserService;
 import ai.tracelearn.systembrain.security.HttpCookieOAuth2AuthorizationRequestRepository;
+import ai.tracelearn.systembrain.security.AuthEntryPoint;
 import ai.tracelearn.systembrain.security.JwtAuthenticationFilter;
 import ai.tracelearn.systembrain.security.OAuth2AuthenticationSuccessHandler;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    private final AuthEntryPoint authEntryPoint;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CustomOAuth2UserService customOAuth2UserService;
     private final CustomOidcUserService customOidcUserService;
@@ -97,6 +99,10 @@ public class SecurityConfig {
                 })
 
                 .successHandler(oAuth2SuccessHandler)
+            )
+
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint(authEntryPoint)
             )
 
             .addFilterBefore(jwtAuthenticationFilter,

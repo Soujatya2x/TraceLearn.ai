@@ -5,7 +5,6 @@ import {
   signUpWithEmail,
   getCurrentUser,
   signOut as signOutService,
-  refreshAccessToken,
   tokenStorage,
 } from '@/services/api/authService'
 import { useAppStore } from '@/store/useAppStore'
@@ -45,7 +44,7 @@ export const useAuthStore = create<AuthState>()(
 
         const hasValidToken = Boolean(tokenStorage.getAccess()) && !tokenStorage.isExpired()
 
-        // ── Fast path: valid token already in memory ──────────────────────────
+        // ── Fast path: valid token already in sessionStorage ──────────────────
         // This happens after OAuth callback stores the token then navigates here.
         // Skip the refresh call entirely — just fetch the user.
         if (hasValidToken) {
@@ -71,21 +70,18 @@ export const useAuthStore = create<AuthState>()(
           return
         }
 
-        // ── Slow path: no token in memory (hard refresh / new tab) ────────────
-        // The refresh token lives in an httpOnly cookie on tracelearn.hopto.org.
-        // If frontend is on a different domain (Vercel), the browser blocks the
-        // cookie — refreshAccessToken() will return 400 and we go unauthenticated.
-        // This is expected behaviour for cross-domain deployments.
-        try {
-          await refreshAccessToken()
-          const user = await getCurrentUser()
-          syncUserId(user)
-          set({ user, status: 'authenticated' })
-        } catch {
-          tokenStorage.clear()
-          syncUserId(null)
-          set({ user: null, status: 'unauthenticated' })
-        }
+        // ── Slow path: no token in sessionStorage ─────────────────────────────
+        //
+        // On Vercel (cross-domain: tracelearnai.vercel.app → tracelearn.hopto.org)
+        // the httpOnly refresh cookie is permanently blocked by the browser.
+        // Attempting POST /auth/refresh always returns 400 with no cookie.
+        //
+        // We skip the refresh call entirely and go straight to unauthenticated.
+        // The user will see the sign-in page and re-authenticate with one OAuth click.
+        // This is the correct UX for cross-domain deployments.
+        tokenStorage.clear()
+        syncUserId(null)
+        set({ user: null, status: 'unauthenticated' })
       },
 
       signInEmail: async (payload) => {
