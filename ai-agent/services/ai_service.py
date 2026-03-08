@@ -1,20 +1,53 @@
-from groq import Groq
+import boto3
 import os
 import json
-from dotenv import load_dotenv
-from models.ai_models import AnalyzeRequest, AnalyzeResponse
-from models.ai_models import ChatRequest, ChatResponse
-from models.ai_models import RoadmapRequest, RoadmapResponse, ConceptMasteryScore
-from models.ai_models import ArtifactsRequest, ArtifactsResponse
+from models.ai_models import (
+    AnalyzeRequest, AnalyzeResponse,
+    ChatRequest, ChatResponse,
+    RoadmapRequest, RoadmapResponse, ConceptMasteryScore,
+    ArtifactsRequest, ArtifactsResponse
+)
 
-load_dotenv()
-api_key = os.getenv("GROQ_API_KEY")
+# ─── Bedrock client ───────────────────────────────────────────────────────────
+# No API key needed — IAM role on EC2 provides credentials automatically.
+# boto3 picks up credentials from the EC2 instance metadata service.
 
-client = Groq(api_key=api_key)
+AWS_REGION = os.getenv("AWS_REGION", "ap-south-1")
+MODEL_ID   = os.getenv("BEDROCK_MODEL_ID", "openai.gpt-oss-120b-1:0")
+
+bedrock = boto3.client(
+    service_name="bedrock-runtime",
+    region_name=AWS_REGION,
+)
+
+
+def _invoke(prompt: str, system_prompt: str = "You are an expert programming tutor. Always output valid JSON only. No explanation text outside the JSON object.") -> str:
+    """
+    Calls Amazon Bedrock Converse API.
+    Returns cleaned JSON string (strips markdown fences if model adds them).
+    """
+    response = bedrock.converse(
+        modelId=MODEL_ID,
+        system=[{"text": system_prompt}],
+        messages=[
+            {"role": "user", "content": [{"text": prompt}]}
+        ],
+        inferenceConfig={
+            "maxTokens": 4096,
+            "temperature": 0.1,
+        }
+    )
+    raw = response["output"]["message"]["content"][0]["text"].strip()
+    # Strip markdown code fences if model wraps response
+    if raw.startswith("```"):
+        raw = "\n".join(raw.split("\n")[1:])
+    if raw.endswith("```"):
+        raw = "\n".join(raw.split("\n")[:-1])
+    return raw.strip()
 
 
 # ─── /ai/analyze ─────────────────────────────────────────────────────────────
-# change types
+
 def build_analyze_prompt(payload: AnalyzeRequest) -> str:
 
     # ── Flow 2: Framework log analysis (Spring Boot, FastAPI, etc.) ──
@@ -56,9 +89,6 @@ Context: {framework_context}
 
 Error Log:
 {log_content}
-
-This is a real error from the developer's machine — NOT sandbox output.
-Analyze what went wrong, explain the framework-specific cause, and provide a fix.
 
 You MUST respond with a single JSON object using EXACTLY these field names (camelCase):
 
@@ -153,22 +183,7 @@ Return ONLY the JSON object. No text outside the JSON.
 
 
 async def call_analyze_llm(payload: AnalyzeRequest) -> AnalyzeResponse:
-    response = client.chat.completions.create(
-        model="openai/gpt-oss-120b",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are an expert programming tutor. Always output valid JSON only. No explanation text outside the JSON object."
-            },
-            {
-                "role": "user",
-                "content": build_analyze_prompt(payload)
-            }
-        ],
-        response_format={"type": "json_object"}
-    )
-
-    raw = response.choices[0].message.content
+    raw = _invoke(build_analyze_prompt(payload))
     return AnalyzeResponse(**json.loads(raw))
 
 
@@ -203,21 +218,7 @@ Return ONLY the JSON object. No text outside the JSON.
 
 
 async def call_chat_llm(payload: ChatRequest) -> ChatResponse:
-    response = client.chat.completions.create(
-        model="openai/gpt-oss-120b",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are an expert programming tutor. Always output valid JSON only."
-            },
-            {
-                "role": "user",
-                "content": build_chat_prompt(payload)
-            }
-        ],
-        response_format={"type": "json_object"}
-    )
-    raw = response.choices[0].message.content
+    raw = _invoke(build_chat_prompt(payload))
     return ChatResponse(**json.loads(raw))
 
 
@@ -272,30 +273,13 @@ Return ONLY the JSON object. No text outside the JSON.
 
 
 async def call_roadmap_llm(payload: RoadmapRequest) -> RoadmapResponse:
-    response = client.chat.completions.create(
-        model="openai/gpt-oss-120b",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are an expert programming tutor. Always output valid JSON only."
-            },
-            {
-                "role": "user",
-                "content": build_roadmap_prompt(payload)
-            }
-        ],
-        response_format={"type": "json_object"}
-    )
-
-    raw = response.choices[0].message.content
+    raw = _invoke(build_roadmap_prompt(payload))
     return RoadmapResponse(**json.loads(raw))
 
 
-async def call_artifacts_llm(payload: ArtifactsRequest) -> ArtifactsResponse:
-    dummy_base = f"https://tracelearn-artifacts.s3.amazonaws.com/artifacts/{payload.sessionId}"
-    return ArtifactsResponse(
-        pdfUrl=f"{dummy_base}/pdf/report.pdf",
-        pptUrl=f"{dummy_base}/ppt/presentation.pptx",
-        summaryUrl=f"{dummy_base}/summary/daily.pdf"
-    )
+# ─── /ai/artifacts ────────────────────────────────────────────────────────────
+# Delegates to real artifacts service — generates PDF/PPT and uploads to S3
 
+async def call_artifacts_llm(payload: ArtifactsRequest) -> ArtifactsResponse:
+    from services.artifacts_service import generate_and_upload_artifacts
+    return await generate_and_upload_artifacts(payload)

@@ -3,7 +3,6 @@ from typing import Optional
 
 # --- /ai/analyze ---
 class PreviousAttempt(BaseModel):
-    #model_config = ConfigDict(extra="forbid")
     attemptNumber: int
     code: str
     stderr: str
@@ -11,7 +10,7 @@ class PreviousAttempt(BaseModel):
     aiFix: str
 
 class AnalyzeRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")   # FIXED: was extra="forbid" — caused 422 on any new field
     sessionId: str
     language: Optional[str] = None
     code: Optional[str] = None
@@ -22,52 +21,34 @@ class AnalyzeRequest(BaseModel):
     originalLogs: Optional[str] = None
     attemptNumber: Optional[int] = None
     previousAttempts: Optional[list[PreviousAttempt]] = []
-    # ← new fields added by Java dev
+    # Fields added for framework log analysis
     executionMode: Optional[str] = None        # "LOG_ANALYSIS" or None
     frameworkType: Optional[str] = None        # "springboot", "fastapi", etc.
-    logContent: Optional[str] = None 
-
-"""class AnalyzeRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    sessionId: str
-    language: str
-    code: str
-    stdout: str
-    stderr: str
-    exitCode: int
-    originalCode: str
-    originalLogs: str
-    attemptNumber: int
-    previousAttempts: list[PreviousAttempt]"""
+    logContent: Optional[str] = None
 
     
 class FixAnalysis(BaseModel):
-    #model_config = ConfigDict(extra="forbid")
     whatChanged: str
     whyItWorks: str
     reinforcedConcept: str
 
 class LearningResource(BaseModel):
-    #model_config = ConfigDict(extra="forbid")
     title: str
     url: str
     type: str
 
 class SimilarError(BaseModel):
-    #model_config = ConfigDict(extra="forbid")
     errorType: str
     description: str
     example: str
     
 class ErrorDetail(BaseModel):
-    #model_config = ConfigDict(extra="forbid")
     errorType: str
     errorFile: str
     errorLine: int
     context: str
     
 class AnalyzeResponse(BaseModel):
-    #model_config = ConfigDict(extra="forbid")
     explanation: str
     stackTrace: str
     whyItHappened: str
@@ -86,12 +67,10 @@ class AnalyzeResponse(BaseModel):
 # --- /ai/chat ---
 
 class ChatMessage(BaseModel):
-    #model_config = ConfigDict(extra="forbid")
     role: str
     message: str
 
 class ChatRequest(BaseModel):
-    #model_config = ConfigDict(extra="forbid")
     sessionId: str
     userMessage: str
     errorContext: str
@@ -99,20 +78,17 @@ class ChatRequest(BaseModel):
     chatHistory: list[ChatMessage]
 
 class ChatResponse(BaseModel):
-    #model_config = ConfigDict(extra="forbid")
     reply: str
     suggestedFollowUps: list[str]
 
 # --- /ai/artifacts ---
 
 class ArtifactsFixAnalysis(BaseModel):
-    #model_config = ConfigDict(extra="forbid")
     whatChanged: str
     whyItWorks: str
     reinforcedConcept: str
 
 class ArtifactsLearningResource(BaseModel):
-    #model_config = ConfigDict(extra="forbid")
     title: str
     url: str
     type: str
@@ -131,7 +107,6 @@ class ArtifactsRequest(BaseModel):
     learningResources: Optional[list[ArtifactsLearningResource]] = []
 
 class ArtifactsResponse(BaseModel):
-    #model_config = ConfigDict(extra="forbid")
     pdfUrl: str
     pptUrl: str
     summaryUrl: str
@@ -139,31 +114,26 @@ class ArtifactsResponse(BaseModel):
 # --- /ai/roadmap ---
 
 class ConceptMetric(BaseModel):
-    #model_config = ConfigDict(extra="forbid")
     conceptName: str
     masteryScore: float
     encounterCount: int
 
 class RoadmapRequest(BaseModel):
-    #model_config = ConfigDict(extra="forbid")
     userId: str
     currentMetrics: list[ConceptMetric]
 
 
 class KnowledgeGap(BaseModel):
-    #model_config = ConfigDict(extra="forbid")
     conceptName: str
     masteryScore: float
     gapLevel: str
     description: str
 
 class TopicResource(BaseModel):
-    #model_config = ConfigDict(extra="forbid")
     title: str
     url: str
 
 class RecommendedTopic(BaseModel):
-    #model_config = ConfigDict(extra="forbid")
     topicName: str
     description: str
     priority: str
@@ -171,12 +141,10 @@ class RecommendedTopic(BaseModel):
     resources: list[TopicResource]
     
 class ConceptMasteryScore(BaseModel):
-    #model_config = ConfigDict(extra="forbid")
     conceptName: str
     masteryScore: float
 
 class RoadmapResponse(BaseModel):
-    #model_config = ConfigDict(extra="forbid")
     knowledgeGapAnalysis: list[KnowledgeGap]
     recommendedTopics: list[RecommendedTopic]
     learningPriorities: str
