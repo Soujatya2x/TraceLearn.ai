@@ -2,7 +2,7 @@ name: Deploy Sandbox
 
 on:
   push:
-    branches: [main, master]
+    branches: [master]
     paths:
       - "sandbox/**"
 
