@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 import { useAuthStore } from '@/store/useAuthStore'
+import { useAppStore } from '@/store/useAppStore'
 import { tokenStorage, getCurrentUser } from '@/services/api/authService'
 
 type CallbackState = 'loading' | 'success' | 'error'
@@ -26,6 +27,17 @@ function parseQuery(search: string): Record<string, string> {
   const result: Record<string, string> = {}
   params.forEach((v, k) => { result[k] = v })
   return result
+}
+
+// Decode the JWT exp claim so expiresAt stays in sync with the backend's
+// actual token lifetime. Falls back to 24h if the token is malformed.
+function getJwtExpiry(token: string): number {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return payload.exp * 1000 // JWT exp is in seconds; Date.now() is ms
+  } catch {
+    return Date.now() + 86_400 * 1_000 // fallback: 24h
+  }
 }
 
 export default function AuthCallbackPage() {
@@ -64,17 +76,26 @@ export default function AuthCallbackPage() {
       return
     }
 
-    const expiresAt = Date.now() + 86_400 * 1_000 // 24h
-
     // ── CRITICAL ORDER ──────────────────────────────────────
-    // 1. Store token in memory + sessionStorage FIRST
-    // 2. Fetch user (needs the token)
+    // 0. Evict any prior auth state BEFORE storing the new token.
+    //    Prevents stale userId / sessionId from a previous session
+    //    (or a different Google account) bleeding into this sign-in.
+    // 1. Store new token in memory + sessionStorage
+    // 2. Fetch user profile (needs the token to be present)
     // 3. Store user in Zustand
     // 4. THEN navigate away
     // If we navigate first, the new page's initAuth() runs before
     // the token is stored and falls through to a failed refresh call.
     // ────────────────────────────────────────────────────────
 
+    tokenStorage.clear()
+    useAuthStore.getState().setUser(null)
+    useAppStore.getState().resetWorkspace()
+
+    // Read expiry directly from the JWT exp claim so this stays in sync
+    // with the backend's actual token lifetime. Falls back to 24h if the
+    // token is somehow malformed.
+    const expiresAt = getJwtExpiry(accessToken)
     tokenStorage.setAccess(accessToken, expiresAt)
 
     getCurrentUser()

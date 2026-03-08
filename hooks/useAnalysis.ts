@@ -10,6 +10,7 @@ import {
   retryExecution,
 } from '@/services/api/analysisService'
 import { useAppStore } from '@/store/useAppStore'
+import { useAuthStore } from '@/store/useAuthStore'
 import type { Language } from '@/types'
 
 export const queryKeys = {
@@ -108,10 +109,12 @@ export function useSession(sessionId: string | null) {
 // ─── Error Explanation ───────────────────────────────────────
 
 export function useErrorExplanation(sessionId: string | null) {
+  const { status } = useAuthStore()
+
   const query = useQuery({
     queryKey: queryKeys.explanation(sessionId ?? ''),
     queryFn: () => getErrorExplanation(sessionId!),
-    enabled: !!sessionId,
+    enabled: !!sessionId && status === 'authenticated',
 
     // Always revalidate when page mounts
     refetchOnMount: 'always',
@@ -132,10 +135,12 @@ export function useErrorExplanation(sessionId: string | null) {
 // ─── Validation Result ───────────────────────────────────────
 
 export function useValidationResult(sessionId: string | null) {
+  const { status } = useAuthStore()
+
   return useQuery({
     queryKey: queryKeys.validation(sessionId ?? ''),
     queryFn: () => getValidationResult(sessionId!),
-    enabled: !!sessionId,
+    enabled: !!sessionId && status === 'authenticated',
     staleTime: 1000 * 60 * 5,
   })
 }

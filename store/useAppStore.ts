@@ -94,15 +94,26 @@ export const useAppStore = create<AppState>()(
       {
         name: "tracelearn-storage",
         partialize: (state) => ({
-          theme:             state.theme,
-          language:          state.language,
-          userId:            state.userId,
-          // Persist sessionId so explanation/validation pages work after navigation.
-          // The explanation page guards against unauthenticated fetches internally.
-          currentSessionId:  state.currentSessionId,
-          sessionViewed:     state.sessionViewed,
-          // Do NOT persist analysisStatus — always start fresh on reload
-          // so the Analyze button resets to idle instead of stuck on "processing"
+          theme:    state.theme,
+          language: state.language,
+          userId:   state.userId,
+          // ── NOT persisted ──────────────────────────────────────────────────
+          // currentSessionId: omitted intentionally.
+          //   Persisting it causes stale data fetches on tab open: Zustand
+          //   hydrates the old sessionId before auth completes, hooks fire
+          //   immediately with it, and the backend returns 403 (session belongs
+          //   to a different user or a prior session). Starting null each tab
+          //   is the correct behaviour — a new sessionId is set the moment the
+          //   user runs their first analysis.
+          //
+          // sessionViewed: omitted intentionally.
+          //   This flag is only meaningful paired with a live currentSessionId.
+          //   Without it the value is noise and can leave the AnalyzeButton
+          //   stuck in the wrong state on the next tab open.
+          //
+          // analysisStatus: omitted intentionally.
+          //   Always start idle on reload so the Analyze button never gets
+          //   stuck on "processing" from a previous session.
         }),
       },
     ),

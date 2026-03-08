@@ -66,28 +66,51 @@ apiClient.interceptors.response.use(
     const status = error.response?.status
 
 
-    // ── Bug 14 Fix: Handle expired JWT ───────────────────────
+    // ── Handle expired JWT ────────────────────────────────────
+    //
+    // Strategy: attempt a silent token refresh FIRST.
+    // On Vercel (cross-domain), the httpOnly refresh cookie is blocked by the
+    // browser and refreshAccessToken() will throw — that's expected. We then
+    // fall through to clear + redirect.
+    // On same-domain deployments (localhost, self-hosted), the refresh will
+    // succeed and the original request is retried transparently — no logout.
 
     if (status === 401 && !originalRequest._handled401) {
 
       originalRequest._handled401 = true
 
       try {
-        const { tokenStorage } = require('./authService') as {
-          tokenStorage: { clear: () => void }
+        const { refreshAccessToken, tokenStorage: ts } = require('./authService') as {
+          refreshAccessToken: () => Promise<unknown>
+          tokenStorage: { getAccess: () => string | null; clear: () => void }
         }
 
-        tokenStorage.clear()
+        await refreshAccessToken()
+
+        // Refresh succeeded — attach the new token and retry the original request.
+        const newToken = ts.getAccess()
+        if (newToken && originalRequest.headers) {
+          originalRequest.headers['Authorization'] = `Bearer ${newToken}`
+        }
+
+        return apiClient(originalRequest)
 
       } catch {
-        // fail silently
-      }
+        // Refresh failed (expected on Vercel cross-domain) — clear token and
+        // redirect to sign-in so the user can re-authenticate via OAuth.
+        try {
+          const { tokenStorage: ts } = require('./authService') as {
+            tokenStorage: { clear: () => void }
+          }
+          ts.clear()
+        } catch { /* fail silently */ }
 
-      if (typeof window !== 'undefined') {
-        window.location.href = '/auth/sign-in'
-      }
+        if (typeof window !== 'undefined') {
+          window.location.href = '/auth/sign-in'
+        }
 
-      return Promise.reject(error)
+        return Promise.reject(error)
+      }
     }
 
 

@@ -51,6 +51,16 @@ export const useAuthStore = create<AuthState>()(
         if (hasValidToken) {
           try {
             const user = await getCurrentUser()
+
+            // Cross-check: if the token belongs to a different user than the one
+            // whose sessionId / workspace state is currently stored (e.g. Person B
+            // signing in on a browser where Person A was last logged in), wipe the
+            // workspace so no stale sessionId bleeds into Person B's analyze calls.
+            const storedUserId = useAppStore.getState().userId
+            if (storedUserId && storedUserId !== user.id) {
+              useAppStore.getState().resetWorkspace()
+            }
+
             syncUserId(user)
             set({ user, status: 'authenticated' })
           } catch {

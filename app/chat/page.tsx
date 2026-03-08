@@ -12,6 +12,7 @@ import { PreviewBadgeInline } from '@/components/ui/PreviewBadge'
 import { useChatSession, useSendMessage } from '@/hooks/useChat'
 import { useFallback } from '@/hooks/useFallback'
 import { useAppStore } from '@/store/useAppStore'
+import { tokenStorage } from '@/services/api/authService'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/hooks/useAnalysis'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -44,11 +45,10 @@ function useChatWebSocket(sessionId: string | null) {
       wsRef.current = null
     }
 
-    // 🔑 Correct token source
-    const token =
-      typeof window !== 'undefined'
-        ? sessionStorage.getItem('tl_access')
-        : null
+    // Read token via tokenStorage.getAccess() — checks in-memory _accessToken
+    // first, then falls back to sessionStorage. This is storage-backend-agnostic
+    // and always returns the current live token regardless of where it was written.
+    const token = tokenStorage.getAccess()
 
     // 🔑 Derive websocket base URL
     const apiBase =
@@ -124,10 +124,6 @@ function ConversationCard({ errorType, errorContext, sessionId, isPreview, isCon
     <motion.div initial={{ opacity: 0, y: 16, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       className="flex flex-col items-center gap-3.5 pt-8 pb-6 px-4">
       <div className="relative">
-        {/* <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
-          style={{ background: 'linear-gradient(135deg, hsl(var(--primary)), #06b6d4)', boxShadow: '0 0 32px hsl(var(--primary) / 0.4), 0 4px 20px rgba(0,0,0,0.3)' }}>
-          <Zap style={{ width: 26, height: 26, color: '#fff' }} />
-        </div> */}
         {!isPreview && isConnected && (
           <motion.span className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-background"
             animate={{ boxShadow: ['0 0 0 0 rgba(34,197,94,0.4)', '0 0 0 6px rgba(34,197,94,0)'] }}
@@ -149,7 +145,7 @@ function ConversationCard({ errorType, errorContext, sessionId, isPreview, isCon
       </div>
 
       <div className="flex items-center gap-2">
-        {!isPreview && isConnected && (   // ← only show badge when actually connected
+        {!isPreview && isConnected && (
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
             <motion.span className="w-1.5 h-1.5 rounded-full bg-emerald-400"
               animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 2, repeat: Infinity }} />
@@ -263,11 +259,9 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Floating input — absolutely positioned, no hard background below */}
         <div className="absolute bottom-0 left-0 right-0 pointer-events-none">
           <div className="mx-auto max-w-4xl px-5 pb-5 pointer-events-auto">
 
-            {/* Suggestions pop UP, left-aligned */}
             <AnimatePresence>
               {showSuggestions && !input && displayData.suggestedPrompts.length > 0 && (
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
@@ -277,12 +271,6 @@ export default function ChatPage() {
               )}
             </AnimatePresence>
 
-            {/*
-              Solid grey input — clean, grounded, terminal-like.
-              No blur/glass: solid bg-muted sits on the dark page clearly.
-              Border animates to primary color when canSend.
-              Typing is ALWAYS enabled; only the send button is gated.
-            */}
             <motion.div
               animate={{
                 borderColor: canSend ? 'hsl(var(--primary) / 0.55)' : 'hsl(var(--border))',

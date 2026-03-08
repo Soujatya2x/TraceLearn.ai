@@ -14,27 +14,33 @@ import type {
 } from '@/types/auth'
 import type { ApiResponse } from '@/types'
 
-// ─── Token storage — access token in localStorage ────────────
+// ─── Token storage — access token in sessionStorage ──────────
 //
-// We use localStorage (not sessionStorage) so the token survives
-// tab close and reopen. Since the backend refresh cookie is cross-domain
-// (hopto.org → vercel.app) and blocked by browsers, localStorage is the
-// only way to keep the user logged in across tabs/sessions.
+// We use sessionStorage (not localStorage) so the token is scoped to a
+// single browser tab/session and is automatically cleared when the tab
+// closes. This prevents the stale-token auth loop where a 24h localStorage
+// token from a previous session silently authenticates the user on the next
+// visit — skipping the sign-in page and causing analyze to fail with a
+// mismatched or expired context.
 //
-// Security note: localStorage is XSS-readable, same as sessionStorage.
-// The risk is the same — but the UX improvement (no re-login on every tab
-// open) is critical for a production app.
+// The backend refresh cookie is cross-domain (hopto.org → vercel.app) and
+// blocked by browsers anyway, so there is no silent-refresh fallback on
+// Vercel. Re-login on tab open is one OAuth click and is the correct UX.
+//
+// Security note: sessionStorage and localStorage have identical XSS exposure.
+// The security profile is unchanged; only the lifetime is scoped per-tab.
 
 let _accessToken: string | null = null
 let _expiresAt: number = 0
 
-const LS_TOKEN_KEY   = 'tl_access'
-const LS_EXPIRES_KEY = 'tl_expires'
+const SS_TOKEN_KEY   = 'tl_access'
+const SS_EXPIRES_KEY = 'tl_expires'
 
-// Restore from localStorage on module load
+// Restore from sessionStorage on module load (survives hot-reloads within
+// the same tab, but not across tab closes or new browser windows).
 if (typeof window !== 'undefined') {
-  const t = localStorage.getItem(LS_TOKEN_KEY)
-  const e = localStorage.getItem(LS_EXPIRES_KEY)
+  const t = sessionStorage.getItem(SS_TOKEN_KEY)
+  const e = sessionStorage.getItem(SS_EXPIRES_KEY)
   if (t && e) {
     _accessToken = t
     _expiresAt   = Number(e)
@@ -46,15 +52,16 @@ export const tokenStorage = {
     _accessToken = accessToken
     _expiresAt   = expiresAt
     if (typeof window !== 'undefined') {
-      localStorage.setItem(LS_TOKEN_KEY,   accessToken)
-      localStorage.setItem(LS_EXPIRES_KEY, String(expiresAt))
+      sessionStorage.setItem(SS_TOKEN_KEY,   accessToken)
+      sessionStorage.setItem(SS_EXPIRES_KEY, String(expiresAt))
     }
   },
   getAccess(): string | null {
-    // Re-read from localStorage in case another tab updated it
+    // Re-read from sessionStorage in case the token was just written
+    // (e.g. immediately after OAuth callback stores it).
     if (typeof window !== 'undefined' && !_accessToken) {
-      const t = localStorage.getItem(LS_TOKEN_KEY)
-      const e = localStorage.getItem(LS_EXPIRES_KEY)
+      const t = sessionStorage.getItem(SS_TOKEN_KEY)
+      const e = sessionStorage.getItem(SS_EXPIRES_KEY)
       if (t && e) {
         _accessToken = t
         _expiresAt   = Number(e)
@@ -69,8 +76,8 @@ export const tokenStorage = {
     _accessToken = null
     _expiresAt   = 0
     if (typeof window !== 'undefined') {
-      localStorage.removeItem(LS_TOKEN_KEY)
-      localStorage.removeItem(LS_EXPIRES_KEY)
+      sessionStorage.removeItem(SS_TOKEN_KEY)
+      sessionStorage.removeItem(SS_EXPIRES_KEY)
     }
     // Refresh token cookie is cleared server-side by POST /auth/signout.
   },
@@ -120,7 +127,7 @@ export async function signUpWithEmail(payload: SignUpEmailRequest): Promise<Auth
 // ─── Token refresh ────────────────────────────────────────────
 
 export async function refreshAccessToken(): Promise<RefreshTokenResponse> {
-  // If we already have a valid non-expired token in localStorage, skip refresh.
+  // If we already have a valid non-expired token in sessionStorage, skip refresh.
   // The refresh cookie is cross-domain (hopto.org → vercel.app) and blocked
   // by browsers — calling refresh without a cookie always returns 400.
   if (tokenStorage.getAccess() && !tokenStorage.isExpired()) {

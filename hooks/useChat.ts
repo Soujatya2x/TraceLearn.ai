@@ -3,12 +3,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getChatSession, sendChatMessage } from '@/services/api/chatService'
 import { queryKeys } from './useAnalysis'
+import { useAuthStore } from '@/store/useAuthStore'
 
 export function useChatSession(sessionId: string | null, active = true) {
+  const { status } = useAuthStore()
+
   return useQuery({
     queryKey: queryKeys.chat(sessionId ?? ''),
     queryFn: () => getChatSession(sessionId!),
-    enabled: !!sessionId,
+    enabled: !!sessionId && status === 'authenticated',
     staleTime: 1000 * 10,
     refetchInterval: active ? 4000 : false,
   })
