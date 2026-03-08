@@ -32,10 +32,30 @@ import type { ApiResponse } from '@/types'
 let _accessToken: string | null = null
 let _expiresAt: number = 0
 
+const SS_TOKEN_KEY   = 'tl_access'
+const SS_EXPIRES_KEY = 'tl_expires'
+
+// Restore from sessionStorage on module load (survives Next.js client-side navigation)
+if (typeof window !== 'undefined') {
+  const t = sessionStorage.getItem(SS_TOKEN_KEY)
+  const e = sessionStorage.getItem(SS_EXPIRES_KEY)
+  if (t && e) {
+    _accessToken = t
+    _expiresAt   = Number(e)
+  }
+}
+
 export const tokenStorage = {
   setAccess(accessToken: string, expiresAt: number) {
     _accessToken = accessToken
     _expiresAt   = expiresAt
+    // Persist to sessionStorage so it survives Next.js page navigation.
+    // sessionStorage is tab-scoped — cleared when the tab is closed.
+    // This is safe for cross-origin setups where httpOnly cookies can't be used.
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(SS_TOKEN_KEY,   accessToken)
+      sessionStorage.setItem(SS_EXPIRES_KEY, String(expiresAt))
+    }
   },
   getAccess(): string | null {
     return _accessToken
@@ -46,8 +66,11 @@ export const tokenStorage = {
   clear() {
     _accessToken = null
     _expiresAt   = 0
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(SS_TOKEN_KEY)
+      sessionStorage.removeItem(SS_EXPIRES_KEY)
+    }
     // Refresh token cookie is cleared server-side by POST /auth/signout.
-    // We cannot touch it here — that's the whole point of httpOnly.
   },
   isExpired(): boolean {
     return !_expiresAt || Date.now() >= _expiresAt - 60_000 // 60s buffer
