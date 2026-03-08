@@ -3,49 +3,31 @@ name: Deploy Sandbox
 on:
   push:
     branches: [master]
-    paths:
-      - "sandbox/**"
-
-  workflow_dispatch:
+    paths: ['sandbox/**']
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Copy sandbox to EC2
-        uses: appleboy/scp-action@v0.1.7
+      - uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: sandbox
-          target: /home/ubuntu/tracelearn/
+          source: "sandbox/"
+          target: "/home/ubuntu/tracelearn/"
 
-      - name: Build and restart sandbox
-        uses: appleboy/ssh-action@v1.0.3
+      - uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            set -e
             cd /home/ubuntu/tracelearn
-
-            echo "Stopping old sandbox..."
-            docker compose stop sandbox || true
-
-            echo "Building sandbox..."
             docker compose build sandbox
-
-            echo "Starting sandbox..."
             docker compose up -d sandbox
+            docker ps | grep -q tracelearn-sandbox && echo '✅ OK' || exit 1
 
-            sleep 20
-
-            docker ps
-
-            docker ps | grep tracelearn-sandbox && echo "✅ Sandbox running" || (docker compose logs sandbox --tail=50 && exit 1)
+            
