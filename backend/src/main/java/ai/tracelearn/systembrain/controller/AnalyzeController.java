@@ -48,7 +48,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class AnalyzeController {
 
-    private static final Set<String> ALLOWED_LANGUAGES = Set.of("python", "java", "javascript", "node", "go", "rust");
+    private static final Set<String> ALLOWED_LANGUAGES = Set.of("python", "java", "javascript", "typescript", "node", "go", "rust");
 
     private static final Set<String> ALLOWED_FRAMEWORKS = Set.of("springboot", "fastapi", "django", "express", "nestjs",
             "react");

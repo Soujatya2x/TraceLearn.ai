@@ -284,6 +284,7 @@ export function WorkspaceRightPanel() {
     language, setLanguage,
     logFile, setLogFile,
     projectFiles, setProjectFiles,
+    setDetectedFramework,
   } = useAppStore()
 
   // ── The code file is stored as projectFiles[0] ────────────────────────────
@@ -305,6 +306,11 @@ export function WorkspaceRightPanel() {
 
   const handleDetect = (result: DetectResult | null) => {
     setDetectResult(result)
+    // FIX: sync detection result into Zustand store so app/page.tsx can read
+    // frameworkType from detectedFramework when calling analyzeCode.mutate().
+    // Previously this stayed in local component state only and was never passed
+    // to the mutation, so frameworkType was always null.
+    setDetectedFramework(result?.detectedFramework ?? null)
     // If detection flips back to sandbox mode, clear any uploaded log file
     if (result?.mode === 'LIVE_EXECUTION') {
       setLogFile(null)

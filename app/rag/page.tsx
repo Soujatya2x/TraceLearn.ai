@@ -8,7 +8,7 @@ import {
   Files, Sparkles, Database
 } from 'lucide-react'
 import { AppShell } from '@/components/layouts/AppShell'
-import { PreviewBadgeInline } from '@/components/ui/PreviewBadge'
+
 import { useRagUpload, useRagQuery } from '@/hooks/useRag'
 import { cn } from '@/lib/utils'
 import type { SourceReference } from '@/services/api/ragService'
@@ -242,7 +242,7 @@ export default function RagPage() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold text-[var(--foreground)]">Document Q&A</h1>
-                <PreviewBadgeInline label="RAG" />
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border border-primary/25 bg-primary/8 text-primary select-none">RAG</span>
               </div>
               <p className="text-sm text-[var(--muted-foreground)]">
                 Upload documents, then ask questions about them using AI

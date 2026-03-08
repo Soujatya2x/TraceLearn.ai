@@ -2,60 +2,17 @@
 
 import { useRef, useEffect, useState } from 'react'
 import { motion, useScroll, useTransform } from 'framer-motion'
-import { RefreshCw, Zap, AlertTriangle, Brain, BookMarked } from 'lucide-react'
+import { RefreshCw, Zap, AlertTriangle, Brain, BookMarked, FileQuestion } from 'lucide-react'
 import { AppShell } from '@/components/layouts/AppShell'
 import { ErrorTopSection } from '@/features/explanation/ErrorTopSection'
 import { AIExplanationSection } from '@/features/explanation/AIExplanationSection'
 import { LearningResourcesSection } from '@/features/explanation/LearningResourcesSection'
 import { SkeletonCard, SkeletonText } from '@/components/ui/SkeletonCard'
-import { PreviewBadgeInline } from '@/components/ui/PreviewBadge'
 import { useErrorExplanation } from '@/hooks/useAnalysis'
 import { useAppStore } from '@/store/useAppStore'
-import { useAuthStore } from '@/store/useAuthStore'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { staggerContainer } from '@/animations/variants'
 import { cn } from '@/lib/utils'
-import type { ErrorExplanation } from '@/types'
-
-const MOCK_EXPLANATION: ErrorExplanation = {
-  sessionId: 'demo-session-001',
-  errorType: 'ZeroDivisionError',
-  errorMessage: 'division by zero',
-  file: 'main.py',
-  lineNumber: 8,
-  stackTrace: [
-    'Traceback (most recent call last):',
-    '  File "main.py", line 11, in <module>',
-    '    result = calculate_average([])',
-    '  File "main.py", line 8, in calculate_average',
-    '    return total / len(numbers)',
-    'ZeroDivisionError: division by zero',
-  ],
-  whyItHappened:
-    'Your function attempts to divide the sum of a list by its length. When an empty list is passed, `len(numbers)` returns 0, causing a division by zero error. Python raises ZeroDivisionError whenever you attempt to divide any number by zero.',
-  conceptBehindError: {
-    concept: 'Guard Clauses & Input Validation',
-    description:
-      'Before performing operations on data, always validate your inputs. A guard clause at the start of a function checks preconditions and returns early or raises a meaningful error, preventing downstream failures.',
-    icon: '🛡️',
-  },
-  stepByStepReasoning: [
-    'An empty list `[]` is passed to `calculate_average()`.',
-    '`sum([])` evaluates to 0 — this is safe.',
-    '`len([])` evaluates to 0 — this is the problem.',
-    'Python evaluates `0 / 0`, which raises `ZeroDivisionError`.',
-    'The fix: add a guard clause that returns `None` or raises a `ValueError` when the list is empty.',
-  ],
-  learningResources: [
-    { title: 'Python Exceptions — Official Docs', url: 'https://docs.python.org/3/tutorial/errors.html', type: 'documentation', source: 'Python Docs' },
-    { title: 'Understanding ZeroDivisionError', url: 'https://realpython.com/python-exceptions/', type: 'article', source: 'Real Python' },
-    { title: 'Guard Clauses — Clean Code', url: 'https://refactoring.guru/replace-nested-conditional-with-guard-clauses', type: 'tutorial', source: 'Refactoring.guru' },
-  ],
-  similarErrorsHistory: [
-    { sessionId: 'prev-001', errorType: 'ZeroDivisionError', date: '3 days ago', resolved: true },
-    { sessionId: 'prev-002', errorType: 'TypeError', date: 'Last week', resolved: true },
-  ],
-}
 
 const SECTIONS = [
   { id: 'error',     label: 'Error',     icon: AlertTriangle },
@@ -127,36 +84,70 @@ function SectionDivider() {
   )
 }
 
+// Shown when there's no active session — user hasn't analyzed anything yet
+function NoSessionState() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="flex flex-col items-center justify-center py-24 gap-4 text-center"
+    >
+      <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center">
+        <FileQuestion className="w-7 h-7 text-muted-foreground" aria-hidden="true" />
+      </div>
+      <div>
+        <p className="text-base font-semibold text-foreground">No analysis yet</p>
+        <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+          Go to the workspace, paste your code and click <strong>Analyze &amp; Learn</strong> to see an explanation here.
+        </p>
+      </div>
+    </motion.div>
+  )
+}
+
+// Shown when the session exists but the AI hasn't returned data yet (or it failed)
+function NoDataState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="flex flex-col items-center justify-center py-24 gap-4 text-center"
+    >
+      <div className="w-14 h-14 rounded-2xl bg-destructive/10 flex items-center justify-center">
+        <AlertTriangle className="w-7 h-7 text-destructive" aria-hidden="true" />
+      </div>
+      <div>
+        <p className="text-base font-semibold text-foreground">Analysis not available</p>
+        <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+          The AI agent hasn't returned data for this session yet. Try refreshing in a moment.
+        </p>
+      </div>
+      <button
+        onClick={onRetry}
+        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+      >
+        <RefreshCw className="w-3.5 h-3.5" />
+        Retry
+      </button>
+    </motion.div>
+  )
+}
+
 export default function ExplanationPage() {
   const { currentSessionId } = useAppStore()
-  const { status: authStatus } = useAuthStore()
   const scrollRef             = useRef<HTMLDivElement>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   const explanationQuery = useErrorExplanation(currentSessionId)
 
-  // Reset analysisStatus when the user leaves this page so the workspace
-  // button returns to idle, ready for a fresh analysis.
+  // Reset analysisStatus when the user leaves so workspace button goes back to idle
   useEffect(() => {
     return () => {
       useAppStore.getState().setAnalysisStatus('idle')
     }
   }, [])
-
-  // Bug 2c fix: the manual refetch() useEffect has been removed.
-  //
-  // Previously this fired a second fetch 100ms after mount:
-  //   useEffect(() => {
-  //     if (!currentSessionId) return
-  //     const timer = setTimeout(() => { explanationQuery.refetch() }, 100)
-  //     return () => clearTimeout(timer)
-  //   }, [currentSessionId])
-  //
-  // It is no longer needed because:
-  //   1. AnalyzeButton now polls until data is in the cache BEFORE navigating (Bug 2a fix).
-  //   2. useErrorExplanation has refetchOnMount: 'always', which already fires a fresh
-  //      fetch on every mount — a second manual refetch() on top of that just doubled
-  //      the in-flight requests with no benefit.
 
   const handleRefresh = async () => {
     if (isRefreshing) return
@@ -168,14 +159,9 @@ export default function ExplanationPage() {
     }
   }
 
-  const hasSession  = !!currentSessionId
-  // Show skeleton while auth is still resolving (query is disabled until 'authenticated'),
-  // while the query itself is fetching, or while a manual refresh is in progress.
-  const isLoading   = hasSession && (authStatus !== 'authenticated' || explanationQuery.isLoading || explanationQuery.isFetching || isRefreshing)
-  // Only fall back to mock/preview mode if we're authenticated, not loading,
-  // and genuinely have no data — prevents mock from flashing during auth init.
-  const isPreview   = !hasSession || (authStatus === 'authenticated' && !isLoading && !explanationQuery.data)
-  const displayData = explanationQuery.data ?? MOCK_EXPLANATION
+  const hasSession = !!currentSessionId
+  const isLoading  = hasSession && (explanationQuery.isLoading || explanationQuery.isFetching || isRefreshing)
+  const hasData    = !!explanationQuery.data
 
   return (
     <AppShell activeNav="explanation">
@@ -183,7 +169,7 @@ export default function ExplanationPage() {
 
       <div ref={scrollRef} className="max-w-3xl mx-auto px-6 py-8">
 
-        {/* ── Page header ──────────────────────────────────── */}
+        {/* ── Page header ───────────────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -191,12 +177,9 @@ export default function ExplanationPage() {
           className="mb-6"
         >
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold text-foreground tracking-tight">
-                Error Explanation
-              </h1>
-              <PreviewBadgeInline visible={isPreview} />
-            </div>
+            <h1 className="text-xl font-semibold text-foreground tracking-tight">
+              Error Explanation
+            </h1>
 
             {hasSession && (
               <motion.button
@@ -215,9 +198,7 @@ export default function ExplanationPage() {
               >
                 <motion.span
                   animate={isLoading ? { rotate: 360 } : {}}
-                  transition={isLoading
-                    ? { duration: 0.8, repeat: Infinity, ease: 'linear' }
-                    : {}}
+                  transition={isLoading ? { duration: 0.8, repeat: Infinity, ease: 'linear' } : {}}
                 >
                   <RefreshCw className="w-3 h-3" />
                 </motion.span>
@@ -231,44 +212,50 @@ export default function ExplanationPage() {
           </p>
         </motion.div>
 
-        {!isLoading && <SectionNav activeSection="error" />}
-
-        {isLoading ? (
+        {/* ── Content ───────────────────────────────────────── */}
+        {!hasSession ? (
+          <NoSessionState />
+        ) : isLoading ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <SkeletonCard />
             <SkeletonCard />
             <div className="space-y-2"><SkeletonText lines={4} /></div>
             <SkeletonCard />
           </motion.div>
+        ) : !hasData ? (
+          <NoDataState onRetry={handleRefresh} />
         ) : (
-          <motion.div
-            variants={staggerContainer}
-            initial="initial"
-            animate="animate"
-            className="space-y-8"
-          >
-            <section id="error" aria-label="Error details">
-              <ErrorBoundary label="error details">
-                <ErrorTopSection explanation={displayData} />
-              </ErrorBoundary>
-            </section>
+          <>
+            <SectionNav activeSection="error" />
+            <motion.div
+              variants={staggerContainer}
+              initial="initial"
+              animate="animate"
+              className="space-y-8"
+            >
+              <section id="error" aria-label="Error details">
+                <ErrorBoundary label="error details">
+                  <ErrorTopSection explanation={explanationQuery.data} />
+                </ErrorBoundary>
+              </section>
 
-            <SectionDivider />
+              <SectionDivider />
 
-            <section id="analysis" aria-label="AI analysis">
-              <ErrorBoundary label="AI analysis">
-                <AIExplanationSection explanation={displayData} />
-              </ErrorBoundary>
-            </section>
+              <section id="analysis" aria-label="AI analysis">
+                <ErrorBoundary label="AI analysis">
+                  <AIExplanationSection explanation={explanationQuery.data} />
+                </ErrorBoundary>
+              </section>
 
-            <SectionDivider />
+              <SectionDivider />
 
-            <section id="resources" aria-label="Learning resources">
-              <ErrorBoundary label="learning resources">
-                <LearningResourcesSection explanation={displayData} />
-              </ErrorBoundary>
-            </section>
-          </motion.div>
+              <section id="resources" aria-label="Learning resources">
+                <ErrorBoundary label="learning resources">
+                  <LearningResourcesSection explanation={explanationQuery.data} />
+                </ErrorBoundary>
+              </section>
+            </motion.div>
+          </>
         )}
       </div>
     </AppShell>

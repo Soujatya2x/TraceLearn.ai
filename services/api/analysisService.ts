@@ -28,10 +28,13 @@ export async function detectFramework(codeFile: File): Promise<DetectResult> {
   const formData = new FormData()
   formData.append('code', codeFile, codeFile.name)
 
+  // FIX: Do NOT set Content-Type manually. Axios must set it automatically
+  // so the multipart boundary token is included (e.g. boundary=----XYZ).
+  // Manually setting 'multipart/form-data' strips the boundary and the
+  // backend throws 400 "Required part 'code' is not present".
   const response = await apiClient.post<ApiResponse<DetectResult>>(
     API_ENDPOINTS.DETECT,
     formData,
-    { headers: { 'Content-Type': 'multipart/form-data' } },
   )
 
   return response.data.data
@@ -43,13 +46,28 @@ export async function detectFramework(codeFile: File): Promise<DetectResult> {
 
 function resolveFilename(language: Language): string {
   switch (language) {
-    case 'python': return 'main.py'
-    case 'java': return 'Main.java'
+    case 'python':     return 'main.py'
+    case 'java':       return 'Main.java'
     case 'javascript': return 'index.js'
     case 'typescript': return 'index.ts'
-    case 'go': return 'main.go'
-    default: return 'main.txt'
+    case 'go':         return 'main.go'
+    default:           return 'main.txt'
   }
+}
+
+/**
+ * FIX: Map frontend Language values to the set the backend accepts.
+ *
+ * Backend ALLOWED_LANGUAGES: python | java | javascript | node | go | rust
+ * Frontend Language type:    python | java | javascript | typescript | go
+ *
+ * 'typescript' is NOT in the backend whitelist → instant 400.
+ * TypeScript files are valid JS at parse time, so we send 'javascript'
+ * and keep the .ts filename so the AI agent knows the actual language.
+ */
+function toBackendLanguage(language: Language): string {
+  if (language === 'typescript') return 'javascript'
+  return language
 }
 
 export async function analyzeCode(
@@ -74,7 +92,8 @@ export async function analyzeCode(
     )
   }
 
-  formData.append('language', language)
+  // FIX: send the mapped language value (typescript → javascript)
+  formData.append('language', toBackendLanguage(language))
 
   if (logFile) formData.append('logs', logFile, logFile.name)
   if (frameworkType) formData.append('frameworkType', frameworkType)
@@ -85,10 +104,12 @@ export async function analyzeCode(
     )
   }
 
+  // FIX: Do NOT set Content-Type manually. Let Axios set it with the correct
+  // multipart boundary. Manual 'multipart/form-data' header causes Spring Boot
+  // to reject the request with 400 because the boundary parameter is missing.
   const response = await apiClient.post<ApiResponse<AnalyzeResponse>>(
     API_ENDPOINTS.ANALYZE,
     formData,
-    { headers: { 'Content-Type': 'multipart/form-data' } },
   )
 
   return response.data.data
@@ -202,10 +223,6 @@ function mapAnalysisToErrorExplanation(
   }
 }
 
-/* ────────────────────────────────────────────────────────── */
-/* VALIDATION DIFF FIX (Bug 11)                               */
-/* ────────────────────────────────────────────────────────── */
-
 function mapSessionToValidationResult(
   session: BackendSession,
   attempts: BackendExecutionAttempt[],
@@ -230,52 +247,26 @@ function mapSessionToValidationResult(
     ) validationStatus = 'failed'
   }
 
-  /* ---------- Diff Computation ---------- */
-
   const diffLines: DiffLine[] = []
 
   if (analysis?.fixedCode && session.originalCode) {
 
     const originalLines = session.originalCode.split('\n')
     const fixedLines = analysis.fixedCode.split('\n')
-
     const max = Math.max(originalLines.length, fixedLines.length)
 
     for (let i = 0; i < max; i++) {
-
-      const orig = originalLines[i]
+      const orig  = originalLines[i]
       const fixed = fixedLines[i]
 
       if (orig === undefined) {
-        diffLines.push({
-          lineNumber: i + 1,
-          type: 'added',
-          content: fixed ?? '',
-        })
-      }
-
-      else if (fixed === undefined) {
-        diffLines.push({
-          lineNumber: i + 1,
-          type: 'removed',
-          content: orig ?? '',
-        })
-      }
-
-      else if (orig !== fixed) {
-        diffLines.push({
-          lineNumber: i + 1,
-          type: 'added',
-          content: fixed,
-        })
-      }
-
-      else {
-        diffLines.push({
-          lineNumber: i + 1,
-          type: 'unchanged',
-          content: orig,
-        })
+        diffLines.push({ lineNumber: i + 1, type: 'added',     content: fixed ?? '' })
+      } else if (fixed === undefined) {
+        diffLines.push({ lineNumber: i + 1, type: 'removed',   content: orig ?? '' })
+      } else if (orig !== fixed) {
+        diffLines.push({ lineNumber: i + 1, type: 'added',     content: fixed })
+      } else {
+        diffLines.push({ lineNumber: i + 1, type: 'unchanged', content: orig })
       }
     }
   }
@@ -285,26 +276,20 @@ function mapSessionToValidationResult(
     originalCode: session.originalCode ?? '',
     fixedCode: analysis?.fixedCode ?? '',
     diffLines,
-
-    whatChanged: analysis?.fixAnalysis?.whatChanged ?? '',
-    whyItWorks: analysis?.fixAnalysis?.whyItWorks ?? '',
+    whatChanged:       analysis?.fixAnalysis?.whatChanged       ?? '',
+    whyItWorks:        analysis?.fixAnalysis?.whyItWorks        ?? '',
     reinforcedConcept: analysis?.fixAnalysis?.reinforcedConcept ?? '',
-
     validationStatus,
-
     retryCount: session.retryCount ?? 0,
     maxRetries: 2,
-
     executionOutput: {
-      stdout: latestAttempt?.stdout ?? '',
-      stderr: latestAttempt?.stderr ?? '',
-      exitCode: latestAttempt?.exitCode ?? 0,
+      stdout:        latestAttempt?.stdout          ?? '',
+      stderr:        latestAttempt?.stderr          ?? '',
+      exitCode:      latestAttempt?.exitCode        ?? 0,
       executionTime: latestAttempt?.executionTimeMs ?? 0,
     },
   }
 }
-
-/* ────────────────────────────────────────────────────────── */
 
 function extractHostname(url: string): string {
   try {

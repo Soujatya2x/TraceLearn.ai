@@ -7,67 +7,13 @@ import { ArtifactCard } from '@/features/artifacts/ArtifactCard'
 import { ArtifactsFilterBar } from '@/features/artifacts/ArtifactsFilterBar'
 import { ArtifactsEmptyState } from '@/features/artifacts/ArtifactsEmptyState'
 import { SkeletonCard } from '@/components/ui/SkeletonCard'
-import { PreviewBadgeInline } from '@/components/ui/PreviewBadge'
 import { useArtifacts } from '@/hooks/useArtifacts'
-import { useFallback } from '@/hooks/useFallback'
 import { useAppStore } from '@/store/useAppStore'
 import { staggerContainer, cardSlideUp } from '@/animations/variants'
-import { BarChart3, BookOpen, TrendingUp, Flame, FolderOpen } from 'lucide-react'
+import { BarChart3, BookOpen, TrendingUp, Flame, FolderOpen, FileQuestion } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { ArtifactsResponse, ArtifactType } from '@/types'
+import type { ArtifactType } from '@/types'
 import type { LucideIcon } from 'lucide-react'
-
-// ─── Mock data — shown when backend /artifacts/{sessionId} hasn't returned ───
-// Real data arrives once the AI agent's /ai/artifacts endpoint is wired up
-// and ArtifactService.getArtifacts() returns a present Optional.
-
-const MOCK_ARTIFACTS: ArtifactsResponse = {
-  sessionId: 'demo-session-001',
-  artifacts: [
-    {
-      id: 'art-001', sessionId: 'demo-session-001', type: 'pdf',
-      title: 'ZeroDivisionError — Error Explanation Report',
-      description: 'Detailed PDF report with full explanation, root cause analysis, and recommended fix',
-      s3Url: '#', generatedAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(), size: 204800,
-    },
-    {
-      id: 'art-002', sessionId: 'demo-session-001', type: 'ppt',
-      title: 'Learning Presentation — Guard Clauses & Input Validation',
-      description: '12-slide deck covering the concepts behind this error pattern with visual diagrams',
-      s3Url: '#', generatedAt: new Date(Date.now() - 1000 * 60 * 60).toISOString(), size: 512000,
-    },
-    {
-      id: 'art-003', sessionId: 'demo-session-001', type: 'summary',
-      title: 'Daily Learning Summary — Session Digest',
-      description: 'Your personalized learning digest with all concepts covered and next steps',
-      s3Url: '#', generatedAt: new Date(Date.now() - 1000 * 60 * 90).toISOString(), size: 102400,
-    },
-    {
-      id: 'art-004', sessionId: 'demo-session-001', type: 'pdf',
-      title: 'AttributeError — None Object Access Report',
-      description: 'Comprehensive analysis of NoneType attribute access patterns and defensive programming',
-      s3Url: '#', generatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), size: 188416,
-    },
-    {
-      id: 'art-005', sessionId: 'demo-session-001', type: 'ppt',
-      title: 'Async/Await Patterns — Error Recovery',
-      description: 'Visual presentation on handling exceptions in asynchronous Python code',
-      s3Url: '#', generatedAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(), size: 655360,
-    },
-    {
-      id: 'art-006', sessionId: 'demo-session-001', type: 'summary',
-      title: 'Weekly Progress Summary — W8 2026',
-      description: 'Weekly digest showing progress across error categories and mastery improvements',
-      s3Url: '#', generatedAt: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(), size: 143360,
-    },
-  ],
-  learningMetrics: {
-    totalErrorsAnalyzed: 12,
-    conceptsCovered: 8,
-    fixSuccessRate: 75,
-    learningStreakDays: 5,
-  },
-}
 
 // ─── Animated count-up ────────────────────────────────────────────────────────
 
@@ -136,18 +82,35 @@ function MetricCard({
   )
 }
 
+// ─── No session state ─────────────────────────────────────────────────────────
+
+function NoSessionState() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="flex flex-col items-center justify-center py-24 gap-4 text-center"
+    >
+      <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center">
+        <FileQuestion className="w-7 h-7 text-muted-foreground" />
+      </div>
+      <div>
+        <p className="text-base font-semibold text-foreground">No artifacts yet</p>
+        <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+          Complete an analysis session. The AI agent generates PDFs, slides, and summaries automatically.
+        </p>
+      </div>
+    </motion.div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ArtifactsPage() {
   const { currentSessionId } = useAppStore()
 
-  // ── Real data: GET /api/v1/artifacts/{sessionId} ───────────────────────────
-  // Returns ArtifactResponse — mapped to ArtifactsResponse by artifactsService.
-  // If ArtifactService returns empty Optional (AI agent not done) → 404 → fallback.
   const artifactsQuery = useArtifacts(currentSessionId)
-  const { data: displayData, isPreview, isLoading } = useFallback(artifactsQuery, MOCK_ARTIFACTS)
-
-  const metrics = displayData.learningMetrics
+  const data           = artifactsQuery.data
 
   const [activeFilter, setActiveFilter] = useState<ArtifactType | 'all'>('all')
   const [searchQuery, setSearchQuery]   = useState('')
@@ -155,7 +118,8 @@ export default function ArtifactsPage() {
   const filterRef = useRef<HTMLDivElement>(null)
 
   const filteredArtifacts = useMemo(() => {
-    return displayData.artifacts.filter((artifact) => {
+    if (!data) return []
+    return data.artifacts.filter((artifact) => {
       const matchesType   = activeFilter === 'all' || artifact.type === activeFilter
       const query         = searchQuery.toLowerCase()
       const matchesSearch = !query
@@ -163,7 +127,7 @@ export default function ArtifactsPage() {
         || artifact.description.toLowerCase().includes(query)
       return matchesType && matchesSearch
     })
-  }, [displayData.artifacts, activeFilter, searchQuery])
+  }, [data, activeFilter, searchQuery])
 
   useEffect(() => {
     const el = filterRef.current
@@ -196,63 +160,74 @@ export default function ArtifactsPage() {
             <FolderOpen className="w-5 h-5 text-primary" aria-hidden="true" />
           </motion.div>
           <div>
-            <div className="flex items-center">
-              <h1 className="text-xl font-semibold text-foreground tracking-tight">Artifacts</h1>
-              <PreviewBadgeInline visible={isPreview} />
-            </div>
+            <h1 className="text-xl font-semibold text-foreground tracking-tight">Artifacts</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               Generated learning materials from your analysis sessions
             </p>
           </div>
         </motion.div>
 
-        {/* ── Metrics row ─────────────────────────────────────── */}
-        <motion.div
-          variants={staggerContainer} initial="initial" animate="animate"
-          className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8"
-        >
-          <MetricCard label="Errors Analyzed"  rawValue={metrics.totalErrorsAnalyzed} icon={BarChart3}  color="primary"     delay={0}    trend="Total sessions"   />
-          <MetricCard label="Concepts Covered" rawValue={metrics.conceptsCovered}      icon={BookOpen}   color="warning"     delay={0.05} trend="Unique concepts"  />
-          <MetricCard label="Fix Success Rate" rawValue={metrics.fixSuccessRate}        icon={TrendingUp} color="success"     delay={0.1}  trend="Validated fixes"  suffix="%" />
-          <MetricCard label="Learning Streak"  rawValue={metrics.learningStreakDays}    icon={Flame}      color="destructive" delay={0.15} trend="Consecutive days" suffix="d" />
-        </motion.div>
-
-        {/* ── Filter bar ──────────────────────────────────────── */}
-        <div ref={filterRef}
-          className="sticky top-14 z-10 mb-5 -mx-6 px-6 py-3 transition-all duration-200"
-          style={{
-            background: filterStuck ? 'hsl(var(--background) / 0.92)' : 'transparent',
-            backdropFilter: filterStuck ? 'blur(12px)' : 'none',
-            boxShadow: filterStuck ? '0 1px 0 hsl(var(--border))' : 'none',
-          }}
-        >
-          <ArtifactsFilterBar
-            activeFilter={activeFilter} onFilterChange={setActiveFilter}
-            searchQuery={searchQuery} onSearchChange={setSearchQuery}
-            totalCount={filteredArtifacts.length}
-          />
-        </div>
-
-        {/* ── Grid ────────────────────────────────────────────── */}
-        {isLoading ? (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
-          </motion.div>
-        ) : filteredArtifacts.length === 0 ? (
-          <ArtifactsEmptyState isSearching={isFiltering} />
+        {/* ── No session ──────────────────────────────────────── */}
+        {!currentSessionId ? (
+          <NoSessionState />
+        ) : artifactsQuery.isLoading ? (
+          <>
+            {/* Metric skeletons */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+              {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+            </div>
+          </>
+        ) : !data ? (
+          <NoSessionState />
         ) : (
-          <AnimatePresence mode="popLayout">
+          <>
+            {/* ── Metrics row ───────────────────────────────────── */}
             <motion.div
-              key={`${activeFilter}-${searchQuery}`}
               variants={staggerContainer} initial="initial" animate="animate"
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+              className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8"
             >
-              {filteredArtifacts.map((artifact, i) => (
-                <ArtifactCard key={artifact.id} artifact={artifact} delay={i * 0.05} />
-              ))}
+              <MetricCard label="Errors Analyzed"  rawValue={data.learningMetrics.totalErrorsAnalyzed} icon={BarChart3}  color="primary"     delay={0}    trend="Total sessions"   />
+              <MetricCard label="Concepts Covered" rawValue={data.learningMetrics.conceptsCovered}      icon={BookOpen}   color="warning"     delay={0.05} trend="Unique concepts"  />
+              <MetricCard label="Fix Success Rate" rawValue={data.learningMetrics.fixSuccessRate}        icon={TrendingUp} color="success"     delay={0.1}  trend="Validated fixes"  suffix="%" />
+              <MetricCard label="Learning Streak"  rawValue={data.learningMetrics.learningStreakDays}    icon={Flame}      color="destructive" delay={0.15} trend="Consecutive days" suffix="d" />
             </motion.div>
-          </AnimatePresence>
+
+            {/* ── Filter bar ──────────────────────────────────── */}
+            <div ref={filterRef}
+              className="sticky top-14 z-10 mb-5 -mx-6 px-6 py-3 transition-all duration-200"
+              style={{
+                background: filterStuck ? 'hsl(var(--background) / 0.92)' : 'transparent',
+                backdropFilter: filterStuck ? 'blur(12px)' : 'none',
+                boxShadow: filterStuck ? '0 1px 0 hsl(var(--border))' : 'none',
+              }}
+            >
+              <ArtifactsFilterBar
+                activeFilter={activeFilter} onFilterChange={setActiveFilter}
+                searchQuery={searchQuery} onSearchChange={setSearchQuery}
+                totalCount={filteredArtifacts.length}
+              />
+            </div>
+
+            {/* ── Grid ──────────────────────────────────────────── */}
+            {filteredArtifacts.length === 0 ? (
+              <ArtifactsEmptyState isSearching={isFiltering} />
+            ) : (
+              <AnimatePresence mode="popLayout">
+                <motion.div
+                  key={`${activeFilter}-${searchQuery}`}
+                  variants={staggerContainer} initial="initial" animate="animate"
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+                >
+                  {filteredArtifacts.map((artifact, i) => (
+                    <ArtifactCard key={artifact.id} artifact={artifact} delay={i * 0.05} />
+                  ))}
+                </motion.div>
+              </AnimatePresence>
+            )}
+          </>
         )}
 
       </div>
