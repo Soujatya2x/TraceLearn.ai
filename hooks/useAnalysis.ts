@@ -112,9 +112,15 @@ export function useErrorExplanation(sessionId: string | null) {
     queryKey: queryKeys.explanation(sessionId ?? ''),
     queryFn: () => getErrorExplanation(sessionId!),
     enabled: !!sessionId,
+
+    // Always revalidate when page mounts
+    refetchOnMount: 'always',
+
+    // Do not cache as fresh
     staleTime: 0,
-    gcTime: 0,                  // don't garbage collect between navigations
-    refetchOnMount: 'always',   // always refetch when component mounts
+
+    // Keep cache alive for navigation
+    gcTime: 1000 * 60 * 10,
   })
 
   return {

@@ -2,6 +2,7 @@ from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
 # --- /ai/analyze ---
+
 class PreviousAttempt(BaseModel):
     attemptNumber: int
     code: str
@@ -9,8 +10,10 @@ class PreviousAttempt(BaseModel):
     exitCode: int
     aiFix: str
 
+
 class AnalyzeRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")   # FIXED: was extra="forbid" — caused 422 on any new field
+    model_config = ConfigDict(extra="ignore")
+
     sessionId: str
     language: Optional[str] = None
     code: Optional[str] = None
@@ -21,54 +24,75 @@ class AnalyzeRequest(BaseModel):
     originalLogs: Optional[str] = None
     attemptNumber: Optional[int] = None
     previousAttempts: Optional[list[PreviousAttempt]] = []
-    # Fields added for framework log analysis
-    executionMode: Optional[str] = None        # "LOG_ANALYSIS" or None
-    frameworkType: Optional[str] = None        # "springboot", "fastapi", etc.
+
+    executionMode: Optional[str] = None
+    frameworkType: Optional[str] = None
     logContent: Optional[str] = None
 
-    
+
 class FixAnalysis(BaseModel):
-    whatChanged: str
-    whyItWorks: str
-    reinforcedConcept: str
+    model_config = ConfigDict(extra="ignore")
+
+    whatChanged: Optional[str] = ""
+    whyItWorks: Optional[str] = ""
+    reinforcedConcept: Optional[str] = ""
+
 
 class LearningResource(BaseModel):
-    title: str
-    url: str
-    type: str
+    model_config = ConfigDict(extra="ignore")
+
+    title: Optional[str] = ""
+    url: Optional[str] = ""
+    type: Optional[str] = "article"
+
 
 class SimilarError(BaseModel):
-    errorType: str
-    description: str
-    example: str
-    
+    model_config = ConfigDict(extra="ignore")
+
+    errorType: Optional[str] = ""
+    description: Optional[str] = ""
+    example: Optional[str] = ""
+
+
 class ErrorDetail(BaseModel):
-    errorType: str
-    errorFile: str
-    errorLine: int
-    context: str
-    
+    model_config = ConfigDict(extra="ignore")
+
+    errorType: Optional[str] = ""
+    errorFile: Optional[str] = ""
+    errorLine: Optional[int] = 0
+    context: Optional[str] = ""
+
+
 class AnalyzeResponse(BaseModel):
-    explanation: str
-    stackTrace: str
-    whyItHappened: str
-    conceptBehindError: str
-    stepByStepReasoning: list[str]
-    fixedCode: str
-    fixAnalysis: FixAnalysis
-    learningResources: list[LearningResource]
-    similarErrors: list[SimilarError]
-    conceptBreakdown: str
-    learningSummary: str
-    confidenceScore: float
-    retryRecommendation: bool
-    errorDetail: ErrorDetail
+    model_config = ConfigDict(extra="ignore")
+
+    explanation: str = ""
+    stackTrace: str = ""
+    whyItHappened: str = ""
+    conceptBehindError: str = ""
+    stepByStepReasoning: list[str] = []
+
+    fixedCode: str = ""
+
+    fixAnalysis: Optional[FixAnalysis] = None
+    learningResources: list[LearningResource] = []
+    similarErrors: list[SimilarError] = []
+
+    conceptBreakdown: str = ""
+    learningSummary: str = ""
+
+    confidenceScore: float = 0.0
+    retryRecommendation: bool = False
+
+    errorDetail: Optional[ErrorDetail] = None
+
 
 # --- /ai/chat ---
 
 class ChatMessage(BaseModel):
     role: str
     message: str
+
 
 class ChatRequest(BaseModel):
     sessionId: str
@@ -77,24 +101,33 @@ class ChatRequest(BaseModel):
     analysisSummary: str
     chatHistory: list[ChatMessage]
 
+
 class ChatResponse(BaseModel):
     reply: str
     suggestedFollowUps: list[str]
 
+
 # --- /ai/artifacts ---
 
 class ArtifactsFixAnalysis(BaseModel):
-    whatChanged: str
-    whyItWorks: str
-    reinforcedConcept: str
+    model_config = ConfigDict(extra="ignore")
+
+    whatChanged: Optional[str] = ""
+    whyItWorks: Optional[str] = ""
+    reinforcedConcept: Optional[str] = ""
+
 
 class ArtifactsLearningResource(BaseModel):
-    title: str
-    url: str
-    type: str
+    model_config = ConfigDict(extra="ignore")
+
+    title: Optional[str] = ""
+    url: Optional[str] = ""
+    type: Optional[str] = "article"
+
 
 class ArtifactsRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
+
     sessionId: str
     code: Optional[str] = ""
     explanation: Optional[str] = ""
@@ -106,10 +139,12 @@ class ArtifactsRequest(BaseModel):
     fixAnalysis: Optional[ArtifactsFixAnalysis] = None
     learningResources: Optional[list[ArtifactsLearningResource]] = []
 
+
 class ArtifactsResponse(BaseModel):
     pdfUrl: str
     pptUrl: str
     summaryUrl: str
+
 
 # --- /ai/roadmap ---
 
@@ -117,6 +152,7 @@ class ConceptMetric(BaseModel):
     conceptName: str
     masteryScore: float
     encounterCount: int
+
 
 class RoadmapRequest(BaseModel):
     userId: str
@@ -129,9 +165,11 @@ class KnowledgeGap(BaseModel):
     gapLevel: str
     description: str
 
+
 class TopicResource(BaseModel):
     title: str
     url: str
+
 
 class RecommendedTopic(BaseModel):
     topicName: str
@@ -139,10 +177,12 @@ class RecommendedTopic(BaseModel):
     priority: str
     estimatedTime: str
     resources: list[TopicResource]
-    
+
+
 class ConceptMasteryScore(BaseModel):
     conceptName: str
     masteryScore: float
+
 
 class RoadmapResponse(BaseModel):
     knowledgeGapAnalysis: list[KnowledgeGap]

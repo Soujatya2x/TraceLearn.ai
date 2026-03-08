@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Copy, Download, CheckCircle2, RotateCcw, Play,
@@ -71,12 +71,6 @@ const MOCK_VALIDATION: ValidationResult = {
   },
 }
 
-// Static change summary — derived from diffLines in production
-const CHANGE_SUMMARY = [
-  { id: 1, label: 'Added input validation',  detail: 'Lines 2-3: Check if list is empty before calculation', color: 'bg-success/15 text-success-foreground border-success/30' },
-  { id: 2, label: 'Added inline comment',    detail: 'Line 1: Explains the validation purpose',              color: 'bg-primary/10 text-primary border-primary/25' },
-]
-
 // ─── Code panel ───────────────────────────────────────────────────────────────
 
 function CodePanel({
@@ -125,7 +119,7 @@ function CodePanel({
       <div className="flex-1 overflow-auto scrollbar-thin h-[260px]">
         <pre className="p-0 m-0 text-[12px] font-mono leading-6 min-w-max">
           {lines.map((line, i) => {
-            const lineNum      = i + 1
+            const lineNum       = i + 1
             const isHighlighted = highlightLines.includes(lineNum)
             return (
               <div key={i} className={cn(
@@ -167,6 +161,18 @@ function ChangeSummaryChip({ label, detail, color }: { label: string; detail: st
   )
 }
 
+// ─── Derive highlighted line numbers from real diffLines ──────────────────────
+// Used to pass highlightLines to CodePanel so added/removed lines are visually
+// marked in the code view, matching exactly what the AI changed.
+
+function useHighlightLines(diffLines: ValidationResult['diffLines']) {
+  return useMemo(() => {
+    const added   = diffLines.filter((l) => l.type === 'added').map((l) => l.lineNumber)
+    const removed = diffLines.filter((l) => l.type === 'removed').map((l) => l.lineNumber)
+    return { added, removed }
+  }, [diffLines])
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ValidationPage() {
@@ -182,6 +188,50 @@ export default function ValidationPage() {
   const [consoleOpen, setConsoleOpen] = useState(false)
 
   const handleRetry = () => { if (currentSessionId) retryMutation.mutate(currentSessionId) }
+
+  // Bug 4 fix: derive Change Summary dynamically from real diffLines data.
+  // Previously this was a static module-level const that always showed the same
+  // two hardcoded ZeroDivisionError items regardless of what the AI actually fixed.
+  //
+  // Now it reads d.diffLines (populated by the updated mapSessionToValidationResult
+  // in analysisService.ts) and builds descriptive chips from the actual diff counts.
+  // Falls back to d.whatChanged text when diffLines is empty (e.g. mock data path).
+  const changeSummary = useMemo(() => {
+    const added   = d.diffLines.filter((l) => l.type === 'added').length
+    const removed = d.diffLines.filter((l) => l.type === 'removed').length
+    const items: { id: number; label: string; detail: string; color: string }[] = []
+
+    if (added > 0) {
+      items.push({
+        id:     1,
+        label:  `${added} line${added > 1 ? 's' : ''} added`,
+        detail: d.whatChanged || 'New lines introduced by the fix',
+        color:  'bg-success/15 text-success-foreground border-success/30',
+      })
+    }
+    if (removed > 0) {
+      items.push({
+        id:     2,
+        label:  `${removed} line${removed > 1 ? 's' : ''} removed`,
+        detail: 'Lines removed by the fix',
+        color:  'bg-destructive/10 text-destructive border-destructive/20',
+      })
+    }
+    // Fallback: no diff lines but we have a whatChanged description
+    if (items.length === 0 && d.whatChanged) {
+      items.push({
+        id:     1,
+        label:  'Code modified',
+        detail: d.whatChanged,
+        color:  'bg-primary/10 text-primary border-primary/25',
+      })
+    }
+
+    return items
+  }, [d.diffLines, d.whatChanged])
+
+  // Derive which line numbers to highlight in each CodePanel from real diffLines
+  const { added: addedLines, removed: removedLines } = useHighlightLines(d.diffLines)
 
   const statusConfig = {
     success: { icon: CheckCircle2, label: 'Validation Successful', detail: 'Code executed without error',  bg: 'bg-success/10 border-success/20',        textColor: 'text-success-foreground' },
@@ -234,22 +284,43 @@ export default function ValidationPage() {
             </motion.div>
 
             {/* ── Side-by-side code panels ─────────────────────── */}
+            {/* highlightLines now come from real diffLines, not hardcoded [5] / [2,3,4] */}
             <motion.div variants={staggerItem}>
               <ErrorBoundary label="code comparison">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
-                  <CodePanel title="Original Code" subtitle="With error" code={d.originalCode} accentColor="destructive" highlightLines={[5]} />
-                  <CodePanel title="Fixed Code"    subtitle="With input validation added" code={d.fixedCode} accentColor="success" highlightLines={[2, 3, 4]} />
+                  <CodePanel
+                    title="Original Code"
+                    subtitle="With error"
+                    code={d.originalCode}
+                    accentColor="destructive"
+                    highlightLines={removedLines.length > 0 ? removedLines : []}
+                  />
+                  <CodePanel
+                    title="Fixed Code"
+                    subtitle={addedLines.length > 0 ? `${addedLines.length} line${addedLines.length > 1 ? 's' : ''} changed` : 'AI-suggested fix'}
+                    code={d.fixedCode}
+                    accentColor="success"
+                    highlightLines={addedLines}
+                  />
                 </div>
               </ErrorBoundary>
             </motion.div>
 
             {/* ── Changes summary ──────────────────────────────── */}
+            {/* Bug 4 fix: renders real changeSummary derived from diffLines */}
             <motion.div variants={staggerItem}>
               <ErrorBoundary label="changes summary">
                 <div className="bg-card border border-border rounded-xl p-5">
                   <h2 className="text-sm font-semibold text-foreground mb-3">Changes Summary</h2>
                   <div className="flex flex-col gap-2">
-                    {CHANGE_SUMMARY.map((c) => <ChangeSummaryChip key={c.id} {...c} />)}
+                    {changeSummary.length > 0
+                      ? changeSummary.map((c) => <ChangeSummaryChip key={c.id} {...c} />)
+                      : (
+                        <p className="text-sm text-muted-foreground italic px-1">
+                          No changes detected — the fix may have restructured the code without line-level differences.
+                        </p>
+                      )
+                    }
                   </div>
                 </div>
               </ErrorBoundary>

@@ -28,19 +28,19 @@ import java.util.Set;
  * POST /api/v1/analyze
  *
  * Accepts multipart/form-data with:
- *   - code         (required) — the source code file e.g. main.py or Controller.java
- *   - logs         (optional) — a log/error output file
- *   - language     (required) — e.g. "python", "java", "javascript"
- *   - frameworkType (optional) — e.g. "springboot", "fastapi"
- *                               When provided, routes to LOG_ANALYSIS pipeline (sandbox skipped).
- *                               When absent, auto-detection runs on log content + filename.
+ * - code (required) — the source code file e.g. main.py or Controller.java
+ * - logs (optional) — a log/error output file
+ * - language (required) — e.g. "python", "java", "javascript"
+ * - frameworkType (optional) — e.g. "springboot", "fastapi"
+ * When provided, routes to LOG_ANALYSIS pipeline (sandbox skipped).
+ * When absent, auto-detection runs on log content + filename.
  *
  * Returns sessionId immediately. Frontend polls GET /session/{id} for progress.
  *
  * Multipart limits (application.yml):
- *   spring.servlet.multipart.max-file-size:    10MB
- *   spring.servlet.multipart.max-request-size: 20MB
- *   app.execution.max-file-size-bytes:          5MB  (enforced below)
+ * spring.servlet.multipart.max-file-size: 10MB
+ * spring.servlet.multipart.max-request-size: 20MB
+ * app.execution.max-file-size-bytes: 5MB (enforced below)
  */
 @Slf4j
 @RestController
@@ -48,11 +48,10 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class AnalyzeController {
 
-    private static final Set<String> ALLOWED_LANGUAGES =
-            Set.of("python", "java", "javascript", "node", "go", "rust");
+    private static final Set<String> ALLOWED_LANGUAGES = Set.of("python", "java", "javascript", "node", "go", "rust");
 
-    private static final Set<String> ALLOWED_FRAMEWORKS =
-            Set.of("springboot", "fastapi", "django", "express", "nestjs", "react");
+    private static final Set<String> ALLOWED_FRAMEWORKS = Set.of("springboot", "fastapi", "django", "express", "nestjs",
+            "react");
 
     private final OrchestrationService orchestrationService;
     private final UserRepository userRepository;
@@ -136,11 +135,11 @@ public class AnalyzeController {
      *
      * Request body:
      * {
-     *   "code":          "def divide...",
-     *   "logs":          "optional log text",
-     *   "language":      "python",
-     *   "filename":      "main.py",
-     *   "frameworkType": "springboot"   ← optional
+     * "code": "def divide...",
+     * "logs": "optional log text",
+     * "language": "python",
+     * "filename": "main.py",
+     * "frameworkType": "springboot" ← optional
      * }
      */
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -169,12 +168,13 @@ public class AnalyzeController {
             normalizedFramework = request.getFrameworkType().trim().toLowerCase();
             if (!ALLOWED_FRAMEWORKS.contains(normalizedFramework)) {
                 throw new BadRequestException(
-                        "Unsupported frameworkType '" + request.getFrameworkType() + "'. Allowed: " + ALLOWED_FRAMEWORKS);
+                        "Unsupported frameworkType '" + request.getFrameworkType() + "'. Allowed: "
+                                + ALLOWED_FRAMEWORKS);
             }
         }
 
-        if (request.getCode().getBytes(StandardCharsets.UTF_8).length
-                > appProperties.getExecution().getMaxFileSizeBytes()) {
+        if (request.getCode().getBytes(StandardCharsets.UTF_8).length > appProperties.getExecution()
+                .getMaxFileSizeBytes()) {
             throw new BadRequestException("Code exceeds maximum allowed size of "
                     + appProperties.getExecution().getMaxFileSizeBytes() + " bytes");
         }
@@ -199,6 +199,9 @@ public class AnalyzeController {
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private User resolveUser(UserPrincipal principal) {
+        if (principal == null) {
+            throw new BadRequestException("Authentication required. Please sign in.");
+        }
         return userRepository.findById(principal.getId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "User", "id", principal.getId().toString()));

@@ -34,16 +34,70 @@ const MOCK_CHAT: ChatSession = {
 function useChatWebSocket(sessionId: string | null) {
   const queryClient = useQueryClient()
   const [isConnected, setIsConnected] = useState(false)
+  const wsRef = useRef<WebSocket | null>(null)
+
   useEffect(() => {
     if (!sessionId) return
-    const token = typeof window !== 'undefined' ? localStorage.getItem('tl_auth_token') : null
-    const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:8080'}/ws/session/${sessionId}${token ? `?token=${token}` : ''}`)
-    ws.onopen = () => setIsConnected(true)
-    ws.onclose = () => setIsConnected(false)
-    ws.onerror = () => setIsConnected(false)
-    ws.onmessage = (e) => { try { const m = JSON.parse(e.data); if (m.type === 'CHAT_REPLY') queryClient.invalidateQueries({ queryKey: queryKeys.chat(sessionId) }) } catch { } }
-    return () => ws.close()
+
+    if (wsRef.current) {
+      wsRef.current.close()
+      wsRef.current = null
+    }
+
+    // 🔑 Correct token source
+    const token =
+      typeof window !== 'undefined'
+        ? sessionStorage.getItem('tl_access')
+        : null
+
+    // 🔑 Derive websocket base URL
+    const apiBase =
+      process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080'
+
+    const wsBase = apiBase
+      .replace('https://', 'wss://')
+      .replace('http://', 'ws://')
+
+    const wsUrl = `${wsBase}/ws/session/${sessionId}${token ? `?token=${token}` : ''
+      }`
+
+    const ws = new WebSocket(wsUrl)
+    wsRef.current = ws
+
+    ws.onopen = () => {
+      setIsConnected(true)
+    }
+
+    ws.onclose = () => {
+      setIsConnected(false)
+    }
+
+    ws.onerror = () => {
+      setIsConnected(false)
+    }
+
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data)
+
+        if (message.type === 'CHAT_REPLY') {
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.chat(sessionId),
+          })
+        }
+      } catch (err) {
+        console.error('WebSocket message parse error', err)
+      }
+    }
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close()
+        wsRef.current = null
+      }
+    }
   }, [sessionId, queryClient])
+
   return { isConnected }
 }
 
@@ -129,6 +183,17 @@ export default function ChatPage() {
   const prevCountRef = useRef(0)
   const mountedRef = useRef(false)
 
+  const prevMessageCount = useRef(displayData.messages.length)
+
+  useEffect(() => {
+    const newCount = displayData.messages.length
+
+    if (newCount > prevMessageCount.current) {
+      setIsTyping(false)
+      prevMessageCount.current = newCount
+    }
+  }, [displayData.messages.length])
+
   useEffect(() => {
     const count = displayData.messages.length
     if (!mountedRef.current) { mountedRef.current = true; prevCountRef.current = count; return }
@@ -138,9 +203,18 @@ export default function ChatPage() {
 
   const handleSend = useCallback(async () => {
     const t = input.trim()
+
     if (!t || !currentSessionId) return
-    setInput(''); setIsTyping(true); setShowSuggestions(false)
-    try { await sendMessage.mutateAsync(t) } finally { setTimeout(() => setIsTyping(false), 2000) }
+
+    setInput('')
+    setIsTyping(true)
+    setShowSuggestions(false)
+
+    try {
+      await sendMessage.mutateAsync(t)
+    } catch {
+      setIsTyping(false)
+    }
   }, [input, currentSessionId, sendMessage])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

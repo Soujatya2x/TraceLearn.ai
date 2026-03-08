@@ -1,7 +1,3 @@
-// ============================================================
-// TraceLearn.ai — Analysis Service
-// ============================================================
-
 import apiClient from './client'
 import { API_ENDPOINTS } from './endpoints'
 import type {
@@ -10,27 +6,21 @@ import type {
   BackendAnalysis,
   BackendExecutionAttempt,
   BackendSession,
+  DiffLine,
   ErrorExplanation,
   Language,
   Session,
   ValidationResult,
 } from '@/types'
 
-// ─── Detect Framework ────────────────────────────────────────
-//
-// Called automatically when user uploads a code file.
-// No user action needed — fires on file onChange.
-// Returns detection result so FileUploadZone can update its UI
-// and WorkspaceRightPanel can conditionally show the log file zone.
+/* ────────────────────────────────────────────────────────── */
+/* Detect Framework                                           */
+/* ────────────────────────────────────────────────────────── */
 
 export interface DetectResult {
-  /** "LIVE_EXECUTION" | "LOG_ANALYSIS" */
   mode: 'LIVE_EXECUTION' | 'LOG_ANALYSIS'
-  /** "springboot" | "fastapi" | null */
   detectedFramework: string | null
-  /** 0.0–1.0 confidence score */
   confidence: number
-  /** Human-readable reason for debugging / UI tooltip */
   reason: string
 }
 
@@ -43,25 +33,22 @@ export async function detectFramework(codeFile: File): Promise<DetectResult> {
     formData,
     { headers: { 'Content-Type': 'multipart/form-data' } },
   )
+
   return response.data.data
 }
 
-// ─── Analyze Code ────────────────────────────────────────────
+/* ────────────────────────────────────────────────────────── */
+/* Analyze Code                                               */
+/* ────────────────────────────────────────────────────────── */
 
-// Maps the language to the conventional filename the backend expects.
-// Must stay in sync with WorkspaceService.resolveMainFilename() on the backend.
-// The filename is stored as session.originalFilename and returned to the frontend
-// — an incorrect value (e.g. "main.py" for Java code) confuses the user and
-// corrupts the session metadata.
 function resolveFilename(language: Language): string {
   switch (language) {
-    case 'python':     return 'main.py'
-    case 'java':       return 'Main.java'
+    case 'python': return 'main.py'
+    case 'java': return 'Main.java'
     case 'javascript': return 'index.js'
     case 'typescript': return 'index.ts'
-    case 'go':         return 'main.go'
-    // Defensive: backend also accepts these even if not in the Language type
-    default:           return 'main.txt'
+    case 'go': return 'main.go'
+    default: return 'main.txt'
   }
 }
 
@@ -72,28 +59,30 @@ export async function analyzeCode(
   projectFiles?: File[],
   frameworkType?: string | null,
 ): Promise<AnalyzeResponse> {
+
   const formData = new FormData()
 
-  // If a file was uploaded use it directly; otherwise build blob from editor code
   const codeFile = projectFiles?.[0]
+
   if (codeFile) {
     formData.append('code', codeFile, codeFile.name)
   } else {
-    formData.append('code', new Blob([code], { type: 'text/plain' }), resolveFilename(language))
+    formData.append(
+      'code',
+      new Blob([code], { type: 'text/plain' }),
+      resolveFilename(language),
+    )
   }
 
   formData.append('language', language)
 
-  if (logFile) {
-    formData.append('logs', logFile, logFile.name)
-  }
-  if (frameworkType) {
-    formData.append('frameworkType', frameworkType)
-  }
+  if (logFile) formData.append('logs', logFile, logFile.name)
+  if (frameworkType) formData.append('frameworkType', frameworkType)
 
-  // Skip index 0 — already appended above as 'code'
   if (projectFiles && projectFiles.length > 1) {
-    projectFiles.slice(1).forEach((f) => formData.append('projectFiles', f, f.name))
+    projectFiles.slice(1).forEach((f) =>
+      formData.append('projectFiles', f, f.name),
+    )
   }
 
   const response = await apiClient.post<ApiResponse<AnalyzeResponse>>(
@@ -101,34 +90,45 @@ export async function analyzeCode(
     formData,
     { headers: { 'Content-Type': 'multipart/form-data' } },
   )
+
   return response.data.data
 }
 
-// ─── Get Session State ───────────────────────────────────────
+/* ────────────────────────────────────────────────────────── */
+/* Session                                                    */
+/* ────────────────────────────────────────────────────────── */
 
 export async function getSession(sessionId: string): Promise<Session> {
   const response = await apiClient.get<ApiResponse<Session>>(
     API_ENDPOINTS.SESSION(sessionId),
   )
+
   return response.data.data
 }
 
-// ─── Get Error Explanation ───────────────────────────────────
+/* ────────────────────────────────────────────────────────── */
+/* Error Explanation                                          */
+/* ────────────────────────────────────────────────────────── */
 
 export async function getErrorExplanation(
   sessionId: string,
 ): Promise<ErrorExplanation> {
+
   const response = await apiClient.get<ApiResponse<BackendAnalysis>>(
     API_ENDPOINTS.SESSION_ANALYSIS(sessionId),
   )
+
   return mapAnalysisToErrorExplanation(sessionId, response.data.data)
 }
 
-// ─── Get Validation Result ───────────────────────────────────
+/* ────────────────────────────────────────────────────────── */
+/* Validation Result                                          */
+/* ────────────────────────────────────────────────────────── */
 
 export async function getValidationResult(
   sessionId: string,
 ): Promise<ValidationResult> {
+
   const [sessionRes, attemptsRes] = await Promise.all([
     apiClient.get<ApiResponse<BackendSession>>(API_ENDPOINTS.SESSION(sessionId)),
     apiClient.get<ApiResponse<BackendExecutionAttempt[]>>(
@@ -136,24 +136,33 @@ export async function getValidationResult(
     ),
   ])
 
-  return mapSessionToValidationResult(sessionRes.data.data, attemptsRes.data.data)
+  return mapSessionToValidationResult(
+    sessionRes.data.data,
+    attemptsRes.data.data,
+  )
 }
 
-// ─── Retry Execution ─────────────────────────────────────────
+/* ────────────────────────────────────────────────────────── */
+/* Retry Execution                                            */
+/* ────────────────────────────────────────────────────────── */
 
 export async function retryExecution(sessionId: string): Promise<Session> {
   const response = await apiClient.post<ApiResponse<Session>>(
     API_ENDPOINTS.RETRY(sessionId),
   )
+
   return response.data.data
 }
 
-// ─── Mapping helpers (unchanged) ────────────────────────────
+/* ────────────────────────────────────────────────────────── */
+/* Mapping Helpers                                            */
+/* ────────────────────────────────────────────────────────── */
 
 function mapAnalysisToErrorExplanation(
   sessionId: string,
   analysis: BackendAnalysis,
 ): ErrorExplanation {
+
   const stackTraceLines: string[] = analysis.stackTrace
     ? analysis.stackTrace.split('\n').filter((l) => l.trim().length > 0)
     : []
@@ -180,10 +189,10 @@ function mapAnalysisToErrorExplanation(
 
   return {
     sessionId,
-    errorType:   analysis.errorType   ?? (analysis as any).errorDetail?.errorType ?? 'UnknownError',
+    errorType: analysis.errorType ?? 'UnknownError',
     errorMessage: analysis.explanation ?? '',
-    file:        analysis.errorFile   ?? (analysis as any).errorDetail?.errorFile ?? 'unknown',
-    lineNumber:  analysis.errorLine   ?? (analysis as any).errorDetail?.errorLine ?? 0,
+    file: analysis.errorFile ?? 'unknown',
+    lineNumber: analysis.errorLine ?? 0,
     stackTrace: stackTraceLines,
     whyItHappened: analysis.whyItHappened ?? '',
     conceptBehindError,
@@ -193,33 +202,99 @@ function mapAnalysisToErrorExplanation(
   }
 }
 
+/* ────────────────────────────────────────────────────────── */
+/* VALIDATION DIFF FIX (Bug 11)                               */
+/* ────────────────────────────────────────────────────────── */
+
 function mapSessionToValidationResult(
   session: BackendSession,
   attempts: BackendExecutionAttempt[],
 ): ValidationResult {
+
   const analysis = session.aiAnalysis
 
-  const latestAttempt = attempts.length > 0
-    ? attempts.reduce((best, a) => a.attemptNumber > best.attemptNumber ? a : best)
-    : null
+  const latestAttempt =
+    attempts.length > 0
+      ? attempts.reduce((best, a) =>
+          a.attemptNumber > best.attemptNumber ? a : best,
+        )
+      : null
 
   let validationStatus: 'success' | 'failed' | 'pending' = 'pending'
+
   if (latestAttempt) {
     if (latestAttempt.status === 'SUCCESS') validationStatus = 'success'
-    else if (latestAttempt.status === 'FAILED' || latestAttempt.status === 'ERROR') validationStatus = 'failed'
+    else if (
+      latestAttempt.status === 'FAILED' ||
+      latestAttempt.status === 'ERROR'
+    ) validationStatus = 'failed'
+  }
+
+  /* ---------- Diff Computation ---------- */
+
+  const diffLines: DiffLine[] = []
+
+  if (analysis?.fixedCode && session.originalCode) {
+
+    const originalLines = session.originalCode.split('\n')
+    const fixedLines = analysis.fixedCode.split('\n')
+
+    const max = Math.max(originalLines.length, fixedLines.length)
+
+    for (let i = 0; i < max; i++) {
+
+      const orig = originalLines[i]
+      const fixed = fixedLines[i]
+
+      if (orig === undefined) {
+        diffLines.push({
+          lineNumber: i + 1,
+          type: 'added',
+          content: fixed ?? '',
+        })
+      }
+
+      else if (fixed === undefined) {
+        diffLines.push({
+          lineNumber: i + 1,
+          type: 'removed',
+          content: orig ?? '',
+        })
+      }
+
+      else if (orig !== fixed) {
+        diffLines.push({
+          lineNumber: i + 1,
+          type: 'added',
+          content: fixed,
+        })
+      }
+
+      else {
+        diffLines.push({
+          lineNumber: i + 1,
+          type: 'unchanged',
+          content: orig,
+        })
+      }
+    }
   }
 
   return {
     sessionId: session.sessionId,
     originalCode: session.originalCode ?? '',
     fixedCode: analysis?.fixedCode ?? '',
-    diffLines: [],
+    diffLines,
+
     whatChanged: analysis?.fixAnalysis?.whatChanged ?? '',
     whyItWorks: analysis?.fixAnalysis?.whyItWorks ?? '',
     reinforcedConcept: analysis?.fixAnalysis?.reinforcedConcept ?? '',
+
     validationStatus,
+
     retryCount: session.retryCount ?? 0,
     maxRetries: 2,
+
     executionOutput: {
       stdout: latestAttempt?.stdout ?? '',
       stderr: latestAttempt?.stderr ?? '',
@@ -228,6 +303,8 @@ function mapSessionToValidationResult(
     },
   }
 }
+
+/* ────────────────────────────────────────────────────────── */
 
 function extractHostname(url: string): string {
   try {

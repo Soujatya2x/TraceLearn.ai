@@ -177,8 +177,29 @@ Return ONLY the JSON object. No text outside the JSON.
 
 
 async def call_analyze_llm(payload: AnalyzeRequest) -> AnalyzeResponse:
+
     raw = _invoke(build_analyze_prompt(payload))
-    return AnalyzeResponse(**json.loads(raw))
+
+    try:
+        data = json.loads(raw)
+
+    except json.JSONDecodeError as e:
+        # Attempt JSON extraction from messy LLM response
+        match = re.search(r'\{.*\}', raw, re.DOTALL)
+
+        if match:
+            try:
+                data = json.loads(match.group())
+            except Exception:
+                raise ValueError(
+                    f"LLM returned malformed JSON: {raw[:300]}"
+                ) from e
+        else:
+            raise ValueError(
+                f"LLM returned non-JSON response: {raw[:300]}"
+            ) from e
+
+    return AnalyzeResponse(**data)
 
 
 # ─── /ai/chat ─────────────────────────────────────────────────────────────────

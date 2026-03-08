@@ -118,7 +118,7 @@ export function AnalyzeButton({ status, onClick, disabled }: AnalyzeButtonProps)
   const queryClient = useQueryClient()
   const prefersReduced = useReducedMotion()
   const [bursts, setBursts] = useState<number[]>([])
-  const [navigating, setNavigating] = useState(false)  // ← prefetch in progress
+  const [navigating, setNavigating] = useState(false)
   const burstId = useRef(0)
 
   const normalizedStatus = ((): AnalysisStatus => {
@@ -148,7 +148,11 @@ export function AnalyzeButton({ status, onClick, disabled }: AnalyzeButtonProps)
     onClick()
   }
 
-  // ── "View Results" — prefetch data THEN navigate ──────────────────────────
+  // ── "View Results" — poll until analysis is ready, THEN navigate ──────────
+  // Bug 2a fix: COMPLETED only means the pipeline started. The AI analysis
+  // endpoint (GET /session/{id}/analysis) returns 404 until the AI agent
+  // finishes, which can take 5–30s after COMPLETED. We poll until it succeeds
+  // (up to 30s), then navigate with data already cached in React Query.
   if (normalizedStatus === 'completed') {
     const handleViewResults = async () => {
       if (navigating) return
@@ -156,14 +160,30 @@ export function AnalyzeButton({ status, onClick, disabled }: AnalyzeButtonProps)
       if (!sessionId) return
 
       setNavigating(true)
+
+      const MAX_WAIT_MS = 30_000
+      const POLL_MS     = 2_000
+      const start       = Date.now()
+
+      const waitForAnalysis = async (): Promise<void> => {
+        while (Date.now() - start < MAX_WAIT_MS) {
+          try {
+            await queryClient.fetchQuery({
+              queryKey: queryKeys.explanation(sessionId),
+              queryFn:  () => getErrorExplanation(sessionId),
+              staleTime: 0,
+            })
+            return // success — data is now in cache, explanation page will find it immediately
+          } catch {
+            // 404 = analysis not ready yet — wait and retry
+            await new Promise<void>((r) => setTimeout(r, POLL_MS))
+          }
+        }
+        // 30s timeout — navigate anyway, skeleton will show and page-level refetch will retry
+      }
+
       try {
-        await queryClient.fetchQuery({
-          queryKey: queryKeys.explanation(sessionId),
-          queryFn: () => getErrorExplanation(sessionId),
-          staleTime: 0,
-        })
-      } catch {
-        // navigate anyway, skeleton will show then retry
+        await waitForAnalysis()
       } finally {
         useAppStore.getState().setSessionViewed(true)
         router.push('/explanation')

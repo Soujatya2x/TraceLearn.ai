@@ -133,25 +133,28 @@ export default function ExplanationPage() {
 
   const explanationQuery = useErrorExplanation(currentSessionId)
 
-  // Reset status when user leaves this page
+  // Reset analysisStatus when the user leaves this page so the workspace
+  // button returns to idle, ready for a fresh analysis.
   useEffect(() => {
     return () => {
       useAppStore.getState().setAnalysisStatus('idle')
     }
   }, [])
 
-  // Auto-refetch on mount — use a small delay to ensure component is fully mounted.
-  // Don't check isLoading/data here: on a disabled query both are false/undefined,
-  // so a plain guard would pass but refetch() would be a no-op. The timer ensures
-  // the query is enabled (sessionId is set) before refetch fires.
-  useEffect(() => {
-    if (!currentSessionId) return
-    const timer = setTimeout(() => {
-      explanationQuery.refetch()
-    }, 100)
-    return () => clearTimeout(timer)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSessionId])
+  // Bug 2c fix: the manual refetch() useEffect has been removed.
+  //
+  // Previously this fired a second fetch 100ms after mount:
+  //   useEffect(() => {
+  //     if (!currentSessionId) return
+  //     const timer = setTimeout(() => { explanationQuery.refetch() }, 100)
+  //     return () => clearTimeout(timer)
+  //   }, [currentSessionId])
+  //
+  // It is no longer needed because:
+  //   1. AnalyzeButton now polls until data is in the cache BEFORE navigating (Bug 2a fix).
+  //   2. useErrorExplanation has refetchOnMount: 'always', which already fires a fresh
+  //      fetch on every mount — a second manual refetch() on top of that just doubled
+  //      the in-flight requests with no benefit.
 
   const handleRefresh = async () => {
     if (isRefreshing) return

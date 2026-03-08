@@ -1,7 +1,3 @@
-// ============================================================
-// TraceLearn.ai — Artifacts Hook
-// ============================================================
-
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
@@ -14,7 +10,10 @@ export function useArtifacts(sessionId: string | null) {
     queryKey: queryKeys.artifacts(sessionId ?? ''),
     queryFn: () => getArtifacts(sessionId!),
     enabled: !!sessionId,
-    staleTime: 1000 * 60 * 5,
+
+    // Refresh before S3 URLs expire
+    staleTime: 1000 * 60 * 30,  // 30 minutes
+    gcTime:    1000 * 60 * 60,  // 1 hour
   })
 }
 
