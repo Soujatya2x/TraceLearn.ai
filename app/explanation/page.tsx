@@ -11,6 +11,7 @@ import { SkeletonCard, SkeletonText } from '@/components/ui/SkeletonCard'
 import { PreviewBadgeInline } from '@/components/ui/PreviewBadge'
 import { useErrorExplanation } from '@/hooks/useAnalysis'
 import { useAppStore } from '@/store/useAppStore'
+import { useAuthStore } from '@/store/useAuthStore'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { staggerContainer } from '@/animations/variants'
 import { cn } from '@/lib/utils'
@@ -128,6 +129,7 @@ function SectionDivider() {
 
 export default function ExplanationPage() {
   const { currentSessionId } = useAppStore()
+  const { status: authStatus } = useAuthStore()
   const scrollRef             = useRef<HTMLDivElement>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
@@ -167,8 +169,12 @@ export default function ExplanationPage() {
   }
 
   const hasSession  = !!currentSessionId
-  const isLoading   = hasSession && (explanationQuery.isLoading || explanationQuery.isFetching || isRefreshing)
-  const isPreview   = !hasSession || (!isLoading && !explanationQuery.data)
+  // Show skeleton while auth is still resolving (query is disabled until 'authenticated'),
+  // while the query itself is fetching, or while a manual refresh is in progress.
+  const isLoading   = hasSession && (authStatus !== 'authenticated' || explanationQuery.isLoading || explanationQuery.isFetching || isRefreshing)
+  // Only fall back to mock/preview mode if we're authenticated, not loading,
+  // and genuinely have no data — prevents mock from flashing during auth init.
+  const isPreview   = !hasSession || (authStatus === 'authenticated' && !isLoading && !explanationQuery.data)
   const displayData = explanationQuery.data ?? MOCK_EXPLANATION
 
   return (
