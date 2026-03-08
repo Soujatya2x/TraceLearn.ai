@@ -163,7 +163,7 @@ app:
       log-group: ${CLOUDWATCH_LOG_GROUP:tracelearn-system-brain}
 
   cors:
-    allowed-origins: ${CORS_ORIGINS:http://localhost:3000}
+    allowed-origins: ${CORS_ORIGINS}
 
 # ── Actuator ──
 management:

@@ -92,17 +92,15 @@ export default function AuthCallbackPage() {
       return
     }
 
-    // Immediately remove the fragment from the URL and browser history.
-    // This is the critical step — after router.replace() the token is gone
-    // from history even if the user presses Back.
-    // We do this BEFORE storing or using the token so the window is as small
-    // as possible.
-    router.replace(next)
-
     const expiresAt = Date.now() + 86_400 * 1_000 // 24h default
 
-    // Store access token in memory only — refresh token is in httpOnly cookie
+    // Store access token BEFORE navigating — critical fix.
+    // If we navigate first, the new page's initAuth() runs before the token
+    // is stored and falls through to the cross-origin refresh call (400 error).
     tokenStorage.setAccess(accessToken, expiresAt)
+
+    // Now clear the fragment from URL history
+    router.replace(next)
 
     getCurrentUser()
       .then((user) => {

@@ -69,6 +69,9 @@ services:
       - DEFAULT_TIMEOUT_SECONDS=10
       - INTERNAL_SECRET=${SANDBOX_INTERNAL_SECRET}
       - REQUIRE_INTERNAL_AUTH=true
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    user: root
+    privileged: true
     networks:
       - tracelearn-network
     restart: unless-stopped

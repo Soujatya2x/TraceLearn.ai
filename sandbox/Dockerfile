@@ -37,8 +37,7 @@ COPY --chown=sandbox:sandbox . .
 
 # Add sandbox user to docker group to access /var/run/docker.sock
 # GID 999 is the default docker group GID on most Linux systems
-RUN groupadd -g 999 docker 2>/dev/null || true && \
-    usermod -aG docker sandbox
+RUN groupadd -f docker && usermod -aG docker sandbox
 
 USER sandbox
 
