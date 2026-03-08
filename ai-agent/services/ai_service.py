@@ -1,6 +1,6 @@
-import boto3
 import os
 import json
+from groq import Groq
 from models.ai_models import (
     AnalyzeRequest, AnalyzeResponse,
     ChatRequest, ChatResponse,
@@ -8,36 +8,30 @@ from models.ai_models import (
     ArtifactsRequest, ArtifactsResponse
 )
 
-# ─── Bedrock client ───────────────────────────────────────────────────────────
-# No API key needed — IAM role on EC2 provides credentials automatically.
-# boto3 picks up credentials from the EC2 instance metadata service.
+# ─── Groq client ──────────────────────────────────────────────────────────────
+# Free API key from console.groq.com — no IAM role needed.
 
-AWS_REGION = os.getenv("AWS_REGION", "ap-south-1")
-MODEL_ID   = os.getenv("BEDROCK_MODEL_ID", "openai.gpt-oss-120b-1:0")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+MODEL_ID     = os.getenv("GROQ_MODEL_ID", "openai/gpt-oss-120b")
 
-bedrock = boto3.client(
-    service_name="bedrock-runtime",
-    region_name=AWS_REGION,
-)
+client = Groq(api_key=GROQ_API_KEY)
 
 
 def _invoke(prompt: str, system_prompt: str = "You are an expert programming tutor. Always output valid JSON only. No explanation text outside the JSON object.") -> str:
     """
-    Calls Amazon Bedrock Converse API.
+    Calls Groq Chat Completions API.
     Returns cleaned JSON string (strips markdown fences if model adds them).
     """
-    response = bedrock.converse(
-        modelId=MODEL_ID,
-        system=[{"text": system_prompt}],
+    response = client.chat.completions.create(
+        model=MODEL_ID,
         messages=[
-            {"role": "user", "content": [{"text": prompt}]}
+            {"role": "system", "content": system_prompt},
+            {"role": "user",   "content": prompt},
         ],
-        inferenceConfig={
-            "maxTokens": 4096,
-            "temperature": 0.1,
-        }
+        max_tokens=4096,
+        temperature=0.1,
     )
-    raw = response["output"]["message"]["content"][0]["text"].strip()
+    raw = response.choices[0].message.content.strip()
     # Strip markdown code fences if model wraps response
     if raw.startswith("```"):
         raw = "\n".join(raw.split("\n")[1:])
