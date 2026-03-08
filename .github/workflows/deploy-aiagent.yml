@@ -2,7 +2,7 @@ name: Deploy AI Agent
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths: ['ai-agent/**']
 
 jobs:
