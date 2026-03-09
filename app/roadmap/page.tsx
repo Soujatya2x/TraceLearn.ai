@@ -167,7 +167,7 @@ export default function RoadmapPage() {
             <SectionHeader
               icon={Lightbulb} title="Recommended Topics"
               subtitle={`${roadmap.recommendedTopics.length} personalized topics based on your error history`}
-              color="text-warning-foreground" iconBg="bg-warning/10"
+              color="text-green-700" iconBg="bg-warning/10"
             />
             <div className="flex items-center gap-2 mb-4 flex-wrap">
               {(['high', 'medium', 'low'] as const).map((p) => {

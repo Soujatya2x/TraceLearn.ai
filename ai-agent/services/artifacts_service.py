@@ -166,7 +166,7 @@ def generate_error_report_pdf(p: ArtifactsRequest) -> bytes:
     if p.stepByStepReasoning:
         story += _section_heading("3 · Step-by-Step Reasoning", st)
         items = [ListItem(Paragraph(f"<b>Step {i+1}:</b> {_safe(step)}", st["bullet"]),
-                          leftIndent=16, value=i+1)
+                          leftIndent=16)
                  for i, step in enumerate(p.stepByStepReasoning)]
         story += [ListFlowable(items, bulletType="bullet", start="•"), Spacer(1, 0.3*cm)]
 
