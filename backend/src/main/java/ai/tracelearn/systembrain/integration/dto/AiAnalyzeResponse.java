@@ -1,5 +1,6 @@
 package ai.tracelearn.systembrain.integration.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -35,27 +36,27 @@ public class AiAnalyzeResponse {
     private List<SimilarError> similarErrors;
 
     // ── Learning metrics ─────────────────────────────────────────────────────
-    /** Human-readable prose — display only, never parsed for metric updates. */
     private String conceptBreakdown;
 
     /**
      * Per-concept mastery scores (PREFERRED for metric updates).
-     * Example: [{"concept": "error-handling", "score": 0.3}]
+     *
+     * AI Agent returns: {"conceptName": "...", "masteryScore": 0.3}
+     * Old field names were: {"concept": "...", "score": 0.3}
+     *
+     * @JsonAlias on each field accepts BOTH spellings so no matter what
+     * the LLM returns, Jackson maps it correctly. The getter names
+     * (getConcept / getScore) remain unchanged so LearningMetricService
+     * compiles without any changes.
      */
     private List<ConceptScore> conceptScores;
 
     /**
      * Flat concept name list — fallback when conceptScores is absent.
-     * Backend uses confidenceScore as uniform delta in this case.
      */
     private List<String> concepts;
 
     private String learningSummary;
-
-    /**
-     * Boxed Double — null means AI Agent did not return a score.
-     * Used as fallback uniform mastery delta when conceptScores is absent.
-     */
     private Double confidenceScore;
 
     // ── Control flags ────────────────────────────────────────────────────────
@@ -76,7 +77,7 @@ public class AiAnalyzeResponse {
     public static class LearningResource {
         private String title;
         private String url;
-        private String type;   // "documentation", "article", "video", etc.
+        private String type;
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
@@ -87,10 +88,20 @@ public class AiAnalyzeResponse {
     }
 
     @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ConceptScore {
-        /** Normalized concept name, e.g. "error-handling", "ZeroDivisionError" */
+        /**
+         * AI Agent returns "conceptName" — old code expected "concept".
+         * @JsonAlias accepts both so getLearningMetricService still calls getConcept().
+         */
+        @JsonAlias("conceptName")
         private String concept;
-        /** Mastery score for this session: 0.0–1.0 */
+
+        /**
+         * AI Agent returns "masteryScore" — old code expected "score".
+         * @JsonAlias accepts both so getLearningMetricService still calls getScore().
+         */
+        @JsonAlias("masteryScore")
         private double score;
     }
 
