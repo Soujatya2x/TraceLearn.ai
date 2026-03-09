@@ -166,7 +166,14 @@ class ConceptMetric(BaseModel):
 
 
 class RoadmapRequest(BaseModel):
-    userId: str
+    model_config = ConfigDict(extra="ignore")   # ← add this
+    userId: Optional[str] = None
+    language: Optional[str] = None              # ← add
+    code: Optional[str] = None                  # ← add
+    stdout: Optional[str] = None                # ← add
+    exitCode: Optional[int] = None              # ← add
+    attemptNumber: Optional[int] = None         # ← add
+    previousAttempts: Optional[list[PreviousAttempt]] = []  # ← add
     currentMetrics: list[ConceptMetric]
 
 
