@@ -1,4 +1,5 @@
 import os
+import re
 import json
 from groq import Groq
 from models.ai_models import (
@@ -9,7 +10,6 @@ from models.ai_models import (
 )
 
 # ─── Groq client ──────────────────────────────────────────────────────────────
-# Free API key from console.groq.com — no IAM role needed.
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 MODEL_ID     = os.getenv("GROQ_MODEL_ID", "openai/gpt-oss-120b")
@@ -18,10 +18,6 @@ client = Groq(api_key=GROQ_API_KEY)
 
 
 def _invoke(prompt: str, system_prompt: str = "You are an expert programming tutor. Always output valid JSON only. No explanation text outside the JSON object.") -> str:
-    """
-    Calls Groq Chat Completions API.
-    Returns cleaned JSON string (strips markdown fences if model adds them).
-    """
     response = client.chat.completions.create(
         model=MODEL_ID,
         messages=[
@@ -32,7 +28,6 @@ def _invoke(prompt: str, system_prompt: str = "You are an expert programming tut
         temperature=0.1,
     )
     raw = response.choices[0].message.content.strip()
-    # Strip markdown code fences if model wraps response
     if raw.startswith("```"):
         raw = "\n".join(raw.split("\n")[1:])
     if raw.endswith("```"):
@@ -113,7 +108,11 @@ You MUST respond with a single JSON object using EXACTLY these field names (came
     "errorFile": "filename.ext",
     "errorLine": 1,
     "context": "the line or config that caused the error"
-  }}
+  }},
+  "conceptScores": [
+    {{"concept": "the primary concept behind this error", "masteryScore": 0.2}},
+    {{"concept": "a related concept the student should know", "masteryScore": 0.4}}
+  ]
 }}
 
 Return ONLY the JSON object. No text outside the JSON.
@@ -169,7 +168,11 @@ You MUST respond with a single JSON object using EXACTLY these field names (came
     "errorFile": "main.py",
     "errorLine": 1,
     "context": "the line that caused the error"
-  }}
+  }},
+  "conceptScores": [
+    {{"conceptName": "the primary concept behind this error", "masteryScore": 0.2}},
+    {{"conceptName": "a related concept the student should know", "masteryScore": 0.4}}
+  ]
 }}
 
 Return ONLY the JSON object. No text outside the JSON.
@@ -184,20 +187,23 @@ async def call_analyze_llm(payload: AnalyzeRequest) -> AnalyzeResponse:
         data = json.loads(raw)
 
     except json.JSONDecodeError as e:
-        # Attempt JSON extraction from messy LLM response
         match = re.search(r'\{.*\}', raw, re.DOTALL)
-
         if match:
             try:
                 data = json.loads(match.group())
             except Exception:
-                raise ValueError(
-                    f"LLM returned malformed JSON: {raw[:300]}"
-                ) from e
+                raise ValueError(f"LLM returned malformed JSON: {raw[:300]}") from e
         else:
-            raise ValueError(
-                f"LLM returned non-JSON response: {raw[:300]}"
-            ) from e
+            raise ValueError(f"LLM returned non-JSON response: {raw[:300]}") from e
+
+    # Fallback: if LLM didn't return conceptScores, derive from conceptBehindError
+    if not data.get("conceptScores") and data.get("conceptBehindError"):
+        confidence = data.get("confidenceScore", 0.5)
+        # Low mastery = student is struggling with this concept (inverse of confidence)
+        mastery = round(max(0.1, min(0.9, 1.0 - confidence)), 2)
+        data["conceptScores"] = [
+            {"concept": data["conceptBehindError"], "masteryScore": mastery}
+        ]
 
     return AnalyzeResponse(**data)
 
@@ -293,7 +299,6 @@ async def call_roadmap_llm(payload: RoadmapRequest) -> RoadmapResponse:
 
 
 # ─── /ai/artifacts ────────────────────────────────────────────────────────────
-# Delegates to real artifacts service — generates PDF/PPT and uploads to S3
 
 async def call_artifacts_llm(payload: ArtifactsRequest) -> ArtifactsResponse:
     from services.artifacts_service import generate_and_upload_artifacts

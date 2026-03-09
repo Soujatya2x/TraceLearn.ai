@@ -63,6 +63,13 @@ class ErrorDetail(BaseModel):
     context: Optional[str] = ""
 
 
+class ConceptScore(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    concept: str
+    score: float
+
+
 class AnalyzeResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -85,6 +92,9 @@ class AnalyzeResponse(BaseModel):
     retryRecommendation: bool = False
 
     errorDetail: Optional[ErrorDetail] = None
+
+    # Used by backend to populate LearningMetric rows -> drives roadmap Knowledge Gap + Skill Radar
+    conceptScores: list[ConceptScore] = []
 
 
 # --- /ai/chat ---
