@@ -260,9 +260,23 @@ def build_roadmap_prompt(payload: RoadmapRequest) -> str:
          for m in payload.currentMetrics]
     )
     return f"""
-You are an expert programming tutor analyzing a student's learning progress.
+You are an expert programming tutor analyzing knowledge gap and suggesting recomended topics as per givrn code and error logs.
 
-Student ID: {payload.userId}
+Language: {payload.language}
+Code:
+{payload.code}
+
+Standard Output:
+{payload.stdout or "(none)"}
+
+Error Output:
+{payload.stderr or "(none)"}
+
+Exit Code: {payload.exitCode}
+Attempt Number: {payload.attemptNumber}
+
+Previous Attempts:
+{payload.previousAttempts}
 
 Current Learning Metrics:
 {metrics}
