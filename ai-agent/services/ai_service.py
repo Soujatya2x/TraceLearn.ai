@@ -196,7 +196,6 @@ async def call_analyze_llm(payload: AnalyzeRequest) -> AnalyzeResponse:
             raise ValueError(f"LLM returned non-JSON response: {raw[:300]}") from e
 
     # Normalize conceptScores: LLM may return any combination of field names.
-    # Always output {conceptName, masteryScore} to match ConceptScore model.
     raw_scores = data.get("conceptScores", [])
     normalized = []
     for cs in raw_scores:
@@ -255,60 +254,67 @@ async def call_chat_llm(payload: ChatRequest) -> ChatResponse:
 # ─── /ai/roadmap ──────────────────────────────────────────────────────────────
 
 def build_roadmap_prompt(payload: RoadmapRequest) -> str:
-    metrics = "\n".join(
-        [f"- {m.conceptName}: mastery={m.masteryScore}, encounters={m.encounterCount}"
-         for m in payload.currentMetrics]
-    )
+    # Build rich metrics text with all available context
+    if not payload.currentMetrics:
+        metrics_text = "No metrics yet — this is the user's first session."
+    else:
+        metrics_text = "\n".join(
+            [f"- Concept: \"{m.conceptName}\" | Mastery: {round(m.masteryScore * 100)}% | Times encountered: {m.encounterCount}"
+             for m in payload.currentMetrics]
+        )
+
+    # Separate weak vs strong concepts so the LLM can make targeted recommendations
+    gap_concepts    = [m for m in payload.currentMetrics if m.masteryScore < 0.5]
+    strong_concepts = [m for m in payload.currentMetrics if m.masteryScore >= 0.7]
+
+    gap_text    = ", ".join([f"\"{m.conceptName}\" ({round(m.masteryScore * 100)}% mastery, {m.encounterCount} errors)"
+                              for m in gap_concepts]) if gap_concepts else "none identified yet"
+    strong_text = ", ".join([f"\"{m.conceptName}\"" for m in strong_concepts]) if strong_concepts else "none yet"
+
     return f"""
-You are an expert programming tutor analyzing knowledge gap and suggesting recomended topics as per givrn code and error logs.
+You are an expert programming tutor generating a PERSONALIZED learning roadmap for a specific developer.
 
-Language: {payload.language}
-Code:
-{payload.code}
+This developer has the following concept mastery data derived from their REAL error history:
 
-Standard Output:
-{payload.stdout or "(none)"}
+{metrics_text}
 
-Error Output:
-{payload.stderr or "(none)"}
+Their weakest areas that need immediate attention (mastery < 50%): {gap_text}
+Their strongest areas (mastery >= 70%): {strong_text}
 
-Exit Code: {payload.exitCode}
-Attempt Number: {payload.attemptNumber}
-
-Previous Attempts:
-{payload.previousAttempts}
-
-Current Learning Metrics:
-{metrics}
-
-Gap levels: HIGH (mastery < 0.3), MEDIUM (0.3-0.6), LOW (> 0.6)
-Topic priorities: HIGH, MEDIUM, or LOW
+CRITICAL RULES — you MUST follow these:
+1. Every recommended topic MUST target one of their specific weak concepts listed above
+2. Do NOT generate generic programming topics — every topic must reference a specific concept from their data
+3. If encounterCount is high AND masteryScore is low, set priority to "HIGH"
+4. Topic names must be specific (e.g. "Handling ZeroDivisionError in Python" not "Learn Python")
+5. Resources must be real URLs — use official docs, MDN, Real Python, Baeldung, JavaPoint etc.
+6. Gap level: "HIGH" if mastery < 30%, "MEDIUM" if 30-50%, "LOW" if 50-70%
+7. conceptMasteryScores must include ALL concepts from the metrics above
 
 You MUST respond with a JSON object using EXACTLY these field names:
 
 {{
   "knowledgeGapAnalysis": [
     {{
-      "conceptName": "concept name",
+      "conceptName": "exact concept name from the user metrics above",
       "masteryScore": 0.25,
       "gapLevel": "HIGH",
-      "description": "why this is a gap"
+      "description": "specific explanation of why this is a gap based on their actual error patterns"
     }}
   ],
   "recommendedTopics": [
     {{
-      "topicName": "topic name",
-      "description": "what to study",
+      "topicName": "specific topic name targeting one of their weak concepts",
+      "description": "exactly what to study and why it addresses their specific error history",
       "priority": "HIGH",
-      "estimatedTime": "2 hours",
+      "estimatedTime": "45 minutes",
       "resources": [
-        {{"title": "Resource Title", "url": "https://example.com"}}
+        {{"title": "Official Docs Title", "url": "https://docs.python.org/3/tutorial/errors.html"}}
       ]
     }}
   ],
-  "learningPriorities": "plain language summary of what to focus on",
+  "learningPriorities": "2-3 sentence plain language summary telling this specific developer what to focus on first and why, referencing their actual weak concepts",
   "conceptMasteryScores": [
-    {{"conceptName": "concept name", "masteryScore": 0.75}}
+    {{"conceptName": "concept name", "masteryScore": 0.25}}
   ]
 }}
 
@@ -318,7 +324,20 @@ Return ONLY the JSON object. No text outside the JSON.
 
 async def call_roadmap_llm(payload: RoadmapRequest) -> RoadmapResponse:
     raw = _invoke(build_roadmap_prompt(payload))
-    return RoadmapResponse(**json.loads(raw))
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        match = re.search(r'\{.*\}', raw, re.DOTALL)
+        if match:
+            try:
+                data = json.loads(match.group())
+            except Exception:
+                raise ValueError(f"LLM returned malformed JSON for roadmap: {raw[:300]}") from e
+        else:
+            raise ValueError(f"LLM returned non-JSON roadmap response: {raw[:300]}") from e
+
+    return RoadmapResponse(**data)
 
 
 # ─── /ai/artifacts ────────────────────────────────────────────────────────────
