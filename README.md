@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🧠 TraceLearn.ai
+<img src="public/apple-icon.png" alt="TraceLearn.ai Logo" width="80" height="80" style="border-radius: 16px; margin-bottom: 8px"/>
+
+# TraceLearn.ai
 
 ### *Turn Every Bug Into a Lesson*
 
