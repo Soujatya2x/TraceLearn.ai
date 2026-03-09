@@ -92,13 +92,10 @@ public class AppProperties {
 
     @Getter @Setter
     public static class RateLimit {
-        /** Max analyze requests per user per minute */
         @Positive
         private int analyzeRequestsPerMinute = 5;
-        /** Max analyze requests per user per hour */
         @Positive
         private int analyzeRequestsPerHour = 30;
-        /** Max sessions a user can have in CREATED/EXECUTING/ANALYZING state simultaneously */
         @Positive
         private int maxConcurrentSessions = 3;
     }
