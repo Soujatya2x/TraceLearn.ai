@@ -66,8 +66,9 @@ class ErrorDetail(BaseModel):
 class ConceptScore(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
-    concept: str
-    score: float
+    # Uses conceptName/masteryScore to match what the LLM returns
+    conceptName: str = ""
+    masteryScore: float = 0.0
 
 
 class AnalyzeResponse(BaseModel):
@@ -93,7 +94,7 @@ class AnalyzeResponse(BaseModel):
 
     errorDetail: Optional[ErrorDetail] = None
 
-    # Used by backend to populate LearningMetric rows -> drives roadmap Knowledge Gap + Skill Radar
+    # Drives roadmap Knowledge Gap + Skill Radar via LearningMetricService
     conceptScores: list[ConceptScore] = []
 
 

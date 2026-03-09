@@ -110,8 +110,8 @@ You MUST respond with a single JSON object using EXACTLY these field names (came
     "context": "the line or config that caused the error"
   }},
   "conceptScores": [
-    {{"concept": "the primary concept behind this error", "masteryScore": 0.2}},
-    {{"concept": "a related concept the student should know", "masteryScore": 0.4}}
+    {{"conceptName": "the primary concept behind this error", "masteryScore": 0.2}},
+    {{"conceptName": "a related concept the student should know", "masteryScore": 0.4}}
   ]
 }}
 
@@ -185,7 +185,6 @@ async def call_analyze_llm(payload: AnalyzeRequest) -> AnalyzeResponse:
 
     try:
         data = json.loads(raw)
-
     except json.JSONDecodeError as e:
         match = re.search(r'\{.*\}', raw, re.DOTALL)
         if match:
@@ -196,13 +195,23 @@ async def call_analyze_llm(payload: AnalyzeRequest) -> AnalyzeResponse:
         else:
             raise ValueError(f"LLM returned non-JSON response: {raw[:300]}") from e
 
-    # Fallback: if LLM didn't return conceptScores, derive from conceptBehindError
-    if not data.get("conceptScores") and data.get("conceptBehindError"):
+    # Normalize conceptScores: LLM may return any combination of field names.
+    # Always output {conceptName, masteryScore} to match ConceptScore model.
+    raw_scores = data.get("conceptScores", [])
+    normalized = []
+    for cs in raw_scores:
+        name  = cs.get("conceptName") or cs.get("concept", "")
+        score = cs.get("masteryScore") if cs.get("masteryScore") is not None else cs.get("score", 0.0)
+        if name and str(name).strip():
+            normalized.append({"conceptName": str(name).strip(), "masteryScore": float(score)})
+    data["conceptScores"] = normalized
+
+    # Fallback: if LLM returned no valid conceptScores, derive from conceptBehindError
+    if not data["conceptScores"] and data.get("conceptBehindError"):
         confidence = data.get("confidenceScore", 0.5)
-        # Low mastery = student is struggling with this concept (inverse of confidence)
         mastery = round(max(0.1, min(0.9, 1.0 - confidence)), 2)
         data["conceptScores"] = [
-            {"concept": data["conceptBehindError"], "masteryScore": mastery}
+            {"conceptName": data["conceptBehindError"], "masteryScore": mastery}
         ]
 
     return AnalyzeResponse(**data)
